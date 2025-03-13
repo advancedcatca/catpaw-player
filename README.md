@@ -1,7 +1,8 @@
 猫jio Player - 本地音频播放器
 猫jio Player是一个专为语言学习者设计的轻量级本地音频播放器，无需安装，打开即用。
 ![IMG_2402](https://github.com/user-attachments/assets/d1864a58-9ae1-48b3-88aa-65354c780f92)
-![Uploading IMG_2404(1).PNG…]()
+![IMG_2404(1)](https://github.com/user-attachments/assets/c3f060c9-5170-44cd-ae5b-6247ed1fa5d6)
+
 
 🌟 主要特点
 
