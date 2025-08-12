@@ -72,26 +72,37 @@
         .waveform-title{ font-weight:700; margin-bottom:10px; color:#2c3e50; }
         .region-loop{ background:rgba(74,111,165,.2); border-radius:4px; }
 
-        /* 简洁模式 */
-        .mode-toggle{ position:absolute; top:15px; right:15px; background:#4a6fa5; color:#fff; padding:6px 12px; border-radius:20px; font-size:14px; cursor:pointer; transition:all .3s; display:flex; align-items:center; z-index:10; }
+        /* 切换模式按钮——缩小一半 */
+        .mode-toggle{
+            position:absolute; top:15px; right:15px; background:#4a6fa5; color:#fff;
+            padding:3px 6px; border-radius:10px; font-size:12px; cursor:pointer;
+            transition:all .3s; display:flex; align-items:center; z-index:10;
+        }
         .mode-toggle:hover{ background:#2c3e50; }
-        .mode-toggle::before{ content:"🔄"; margin-right:5px; font-size:14px; }
+        .mode-toggle::before{ content:"🔄"; margin-right:4px; font-size:12px; }
 
+        /* 简洁模式容器 */
         .lite-mode-container{ position:fixed; inset:0; background:#f8f9fa; z-index:1000; display:none; flex-direction:column; justify-content:center; align-items:center; }
-        .lite-player{ width:350px; max-width:92vw; padding:12px; border-radius:10px; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.1); }
 
-        /* 一排小圆按钮（更小） */
-        .lite-controls{ display:flex; justify-content:center; gap:8px; margin-top:10px; flex-wrap:nowrap; }
-        .lite-control-button{ background:#4a6fa5; color:#fff; width:32px; height:32px; display:flex; align-items:center; justify-content:center; border-radius:50%; font-size:16px; padding:0; }
+        /* 简洁模式播放框整体缩小 */
+        .lite-player{
+            width: 280px;     /* 原 350 */
+            max-width: 92vw;
+            padding: 8px;     /* 原 12 */
+            border-radius:10px; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.1);
+        }
+        .lite-title{ text-align:center; font-weight:600; margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:14px; }
+        .lite-player .time-display{ margin:4px 0; font-size:11px; }
 
-        .progress-container{ width:100%; height:8px; background:#e1e4e8; border-radius:5px; margin:10px 0; position:relative; overflow:hidden; }
-        .progress-bar{ height:100%; width:0%; background:#4a6fa5; border-radius:5px; transition:width .1s linear; }
+        /* 进度条更细更紧凑 */
+        .progress-container{ width:100%; height:6px; background:#e1e4e8; border-radius:4px; margin:6px 0; position:relative; overflow:hidden; }
+        .progress-bar{ height:100%; width:0%; background:#4a6fa5; border-radius:4px; transition:width .1s linear; }
 
-        .lite-title{ text-align:center; font-weight:600; margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .lite-speed{ margin-left:auto; font-size:12px; }
-        .lite-speed select{ font-size:12px; padding:2px 6px; }
-
-        .lite-player .time-display{ margin:6px 0; font-size:12px; }
+        /* 一排小圆按钮更小 */
+        .lite-controls{ display:flex; justify-content:center; gap:6px; margin-top:8px; flex-wrap:nowrap; }
+        .lite-control-button{ background:#4a6fa5; color:#fff; width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:50%; font-size:14px; padding:0; }
+        .lite-speed{ margin-left:auto; font-size:11px; }
+        .lite-speed select{ font-size:11px; padding:2px 6px; }
 
         .hidden{ display:none; }
 
@@ -166,6 +177,21 @@
                         <button id="forwardButton" class="control-button">前进5秒</button>
                     </div>
 
+                    <!-- 速度调节（按你的要求，提前到复读区之前） -->
+                    <div class="speed-control">
+                        <label for="playbackSpeed">播放速度:</label>
+                        <select id="playbackSpeed">
+                            <option value="0.5">0.5x</option>
+                            <option value="0.75">0.75x</option>
+                            <option value="1" selected>1.0x (正常)</option>
+                            <option value="1.25">1.25x</option>
+                            <option value="1.5">1.5x</option>
+                            <option value="1.75">1.75x</option>
+                            <option value="2">2.0x</option>
+                        </select>
+                    </div>
+
+                    <!-- 选段复读 -->
                     <div class="loop-section">
                         <div class="loop-header">选段复读</div>
                         <div class="loop-times">
@@ -179,8 +205,8 @@
                             </div>
                         </div>
                         <div class="controls">
-                            <button id="setLoopStartBtn" class="control-button">设置当前为开始点</button>
-                            <button id="setLoopEndBtn" class="control-button">设置当前为结束点</button>
+                            <button id="setLoopStartBtn" class="control-button">设为开始</button>
+                            <button id="setLoopEndBtn" class="control-button">设为结束</button>
                             <button id="startLoopBtn" class="control-button">开始复读</button>
                             <button id="stopLoopBtn" class="control-button">停止复读</button>
                         </div>
@@ -190,18 +216,6 @@
                         </div>
                     </div>
 
-                    <div class="speed-control">
-                        <label for="playbackSpeed">播放速度:</label>
-                        <select id="playbackSpeed">
-                            <option value="0.5">0.5x</option>
-                            <option value="0.75">0.75x</option>
-                            <option value="1" selected>1.0x (正常)</option>
-                            <option value="1.25">1.25x</option>
-                            <option value="1.5">1.5x</option>
-                            <option value="1.75">1.75x</option>
-                            <option value="2">2.0x</option>
-                        </select>
-                    </div>
                 </div>
             </div>
         </div>
