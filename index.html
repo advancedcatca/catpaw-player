@@ -86,9 +86,9 @@
 
         /* 简洁模式播放框整体缩小 */
         .lite-player{
-            width: 280px;     /* 原 350 */
+            width: 280px;
             max-width: 92vw;
-            padding: 8px;     /* 原 12 */
+            padding: 8px;
             border-radius:10px; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.1);
         }
         .lite-title{ text-align:center; font-weight:600; margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:14px; }
@@ -138,6 +138,7 @@
 
             <div class="local-form">
                 <div class="file-input-container">
+                    <!-- 可见即可，无需隐藏；点击“添加文件”会自动触发它 -->
                     <input type="file" id="audioFiles" accept=".mp3,.wav,.ogg,.m4a,.flac" multiple>
                 </div>
                 <button type="button" id="addFilesButton" class="add-button">添加文件</button>
@@ -177,7 +178,7 @@
                         <button id="forwardButton" class="control-button">前进5秒</button>
                     </div>
 
-                    <!-- 速度调节（按你的要求，提前到复读区之前） -->
+                    <!-- 速度调节（提前到复读区之前） -->
                     <div class="speed-control">
                         <label for="playbackSpeed">播放速度:</label>
                         <select id="playbackSpeed">
@@ -191,10 +192,26 @@
                         </select>
                     </div>
 
-                    <!-- 选段复读 -->
+                    <!-- 选段复读（顺序已调整：按钮 → 复读次数 → 开始/结束时间） -->
                     <div class="loop-section">
                         <div class="loop-header">选段复读</div>
-                        <div class="loop-times">
+
+                        <!-- 操作按钮 -->
+                        <div class="controls">
+                            <button id="setLoopStartBtn" class="control-button">设为开始</button>
+                            <button id="setLoopEndBtn" class="control-button">设为结束</button>
+                            <button id="startLoopBtn" class="control-button">开始复读</button>
+                            <button id="stopLoopBtn" class="control-button">停止复读</button>
+                        </div>
+
+                        <!-- 复读次数 -->
+                        <div style="margin-top: 10px;">
+                            <label for="loopCount">复读次数 (0表示无限循环):</label>
+                            <input type="number" id="loopCount" min="0" value="3" style="width: 60px;">
+                        </div>
+
+                        <!-- 开始/结束时间（移动到最后） -->
+                        <div class="loop-times" style="margin-top: 12px;">
                             <div>
                                 <label for="loopStart">开始时间 (秒):</label>
                                 <input type="number" id="loopStart" class="loop-input" min="0" step="0.1" value="0">
@@ -203,16 +220,6 @@
                                 <label for="loopEnd">结束时间 (秒):</label>
                                 <input type="number" id="loopEnd" class="loop-input" min="0" step="0.1" value="0">
                             </div>
-                        </div>
-                        <div class="controls">
-                            <button id="setLoopStartBtn" class="control-button">设为开始</button>
-                            <button id="setLoopEndBtn" class="control-button">设为结束</button>
-                            <button id="startLoopBtn" class="control-button">开始复读</button>
-                            <button id="stopLoopBtn" class="control-button">停止复读</button>
-                        </div>
-                        <div style="margin-top: 10px;">
-                            <label for="loopCount">复读次数 (0表示无限循环):</label>
-                            <input type="number" id="loopCount" min="0" value="3" style="width: 60px;">
                         </div>
                     </div>
 
@@ -512,14 +519,14 @@
 
         // ===== 文件添加/拖放 =====
         function initFileInputs(){
+            // 改为：点击“添加文件”直接弹出文件选择器；选择完成后由 change 事件统一处理
             document.getElementById('addFilesButton').addEventListener('click', function(){
-                const input=document.getElementById('audioFiles');
-                if(input.files.length>0) handleSelectedFiles(input.files);
-                else showMessage('请先选择音频文件','error');
+                document.getElementById('audioFiles').click();
             });
             document.getElementById('audioFiles').addEventListener('change', function(){
-                if(this.files.length>0) handleSelectedFiles(this.files);
+                if(this.files && this.files.length>0) handleSelectedFiles(this.files);
             });
+
             const dropArea=document.getElementById('dropArea');
             ['dragenter','dragover','dragleave','drop'].forEach(ev=>{
                 dropArea.addEventListener(ev, preventDefaults, false);
@@ -547,7 +554,7 @@
                 }else invalid++;
             }
             document.getElementById('audioFiles').value='';
-            if(added>0){ updateAudioList(); savePlaylistToStorage(); }
+            if(added>0){ updateAudioList(); savePersistentPlaylist(); }
             let msg = added>0 ? `成功添加了 ${added} 个音频文件。` : '';
             if(invalid>0) msg += `有 ${invalid} 个文件不是音频文件，已忽略。`;
             showMessage(msg || '未添加文件', added>0 ? 'success' : 'error');
@@ -666,7 +673,7 @@
                 wavesurfer.stop(); if(currentAudio) currentAudio.pause();
                 document.getElementById('currentPlayer').style.display='none'; currentAudioFile=null;
             }
-            URL.revokeObjectURL(file.path); audioFiles.splice(index,1); updateAudioList(); savePlaylistToStorage();
+            URL.revokeObjectURL(file.path); audioFiles.splice(index,1); updateAudioList(); savePersistentPlaylist();
             showMessage('已移除音频文件','success');
         }
 
