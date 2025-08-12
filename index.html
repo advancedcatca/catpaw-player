@@ -140,6 +140,12 @@
             padding: 10px 15px;
             font-weight: bold;
         }
+        /* 小一号按钮 */
+        .small-button {
+            font-size: 14px;
+            padding: 6px 10px;
+            border-radius: 4px;
+        }
         .current-player {
             margin-top: 25px;
             border: 1px solid #e1e4e8;
@@ -483,7 +489,7 @@
             <h2>添加本地音频</h2>
             
             <div class="tip-box">
-                此版本播放器使用浏览器的 File API 直接播放本地文件，无需上传到服务器。添加的文件将保存在当前会话中，关闭页面后需要重新添加。
+                此版本播放器使用浏览器的 File API 直接播放本地文件，无需上传到服务器。关闭页面后可<span style="font-weight:700;">自动/一键恢复</span>（见下方按钮）。
             </div>
             
             <div id="message" class="message-box"></div>
@@ -501,6 +507,13 @@
                     <input type="file" id="audioFiles" accept=".mp3,.wav,.ogg,.m4a,.flac" multiple>
                 </div>
                 <button type="button" id="addFilesButton" class="add-button">添加文件</button>
+                <!-- 新增：小一号按钮 -->
+                <button type="button" id="addByPickerButton" class="add-button small-button" title="使用系统文件选择器添加，可在下次自动恢复（推荐桌面浏览器）">
+                    使用系统文件选择器添加（可自动恢复）
+                </button>
+                <button type="button" id="restoreButton" class="add-button small-button" title="根据上次保存的清单匹配本地文件顺序恢复（iOS/旧浏览器用这个）">
+                    一键恢复上次列表
+                </button>
             </div>
         </div>
         
@@ -627,7 +640,7 @@
     </div>
 
     <script>
-        // 初始化变量
+        // ================== 初始化变量 ==================
         let wavesurfer = null;
         let isLooping = false;
         let loopCounter = 0;
@@ -638,7 +651,163 @@
         let currentAudio = null; // 当前音频元素
         let updateTimer = null; // 进度更新计时器
 
-        // 初始化页面
+        // ====== IndexedDB 小工具 & 能力探测（用于持久化恢复） ======
+        const DB_NAME = 'catpaw-player';
+        const STORE = 'playlist';
+        function idb() {
+          return new Promise((res, rej) => {
+            const req = indexedDB.open(DB_NAME, 1);
+            req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+            req.onsuccess = () => res(req.result);
+            req.onerror = () => rej(req.error);
+          });
+        }
+        async function idbSet(key, val) {
+          const db = await idb();
+          return new Promise((res, rej) => {
+            const tx = db.transaction(STORE, 'readwrite');
+            tx.objectStore(STORE).put(val, key);
+            tx.oncomplete = () => res();
+            tx.onerror = () => rej(tx.error);
+          });
+        }
+        async function idbGet(key) {
+          const db = await idb();
+          return new Promise((res, rej) => {
+            const tx = db.transaction(STORE, 'readonly');
+            const req = tx.objectStore(STORE).get(key);
+            req.onsuccess = () => res(req.result);
+            req.onerror = () => rej(req.error);
+          });
+        }
+        const hasFS = 'showOpenFilePicker' in window;
+
+        // 统一保存：有句柄就存句柄；没有就存清单
+        async function savePersistentPlaylist() {
+          try {
+            const entries = audioFiles.map(f => ({
+              name: f.name,
+              size: f.file?.size || 0,
+              handle: f.handle ? f.handle : null
+            }));
+
+            const allHaveHandles = hasFS && entries.every(e => e.handle);
+            if (allHaveHandles) {
+              await idbSet('handles', entries.map(e => ({ handle: e.handle, name: e.name, size: e.size })));
+              localStorage.setItem('audioPlaylistManifest', '');
+            } else {
+              const manifest = entries.map(e => ({ name: e.name, size: e.size }));
+              localStorage.setItem('audioPlaylistManifest', JSON.stringify(manifest));
+              await idbSet('handles', null);
+            }
+          } catch (err) {
+            console.error('保存持久化播放列表失败', err);
+          }
+        }
+
+        // 系统文件选择器（可拿句柄）
+        async function pickMultipleFiles() {
+          if (hasFS) {
+            const handles = await window.showOpenFilePicker({
+              multiple: true,
+              types: [{ description: 'Audio', accept: { 'audio/*': ['.mp3','.m4a','.wav','.flac','.ogg','.aac'] } }]
+            });
+            const files = [];
+            for (const h of handles) {
+              const f = await h.getFile();
+              const url = URL.createObjectURL(f);
+              files.push({ name: f.name, path: url, file: f, handle: h });
+            }
+            return files;
+          } else {
+            // 旧浏览器：回退为 input
+            return new Promise((res) => {
+              const inp = document.createElement('input');
+              inp.type = 'file';
+              inp.multiple = true;
+              inp.accept = 'audio/*';
+              inp.onchange = () => {
+                const out = Array.from(inp.files).map(f => ({
+                  name: f.name, path: URL.createObjectURL(f), file: f
+                }));
+                res(out);
+              };
+              inp.click();
+            });
+          }
+        }
+
+        // 尝试自动恢复（优先句柄，其次提示清单）
+        async function tryAutoRestoreOnLoad() {
+          const saved = await idbGet('handles');
+          if (hasFS && saved && Array.isArray(saved) && saved.length) {
+            try {
+              const rebuilt = [];
+              for (const item of saved) {
+                const h = item.handle;
+                if (h && (await h.queryPermission?.({ mode: 'read' })) !== 'granted') {
+                  const r = await h.requestPermission?.({ mode: 'read' });
+                  if (r !== 'granted') throw new Error('permission denied');
+                }
+                const file = await h.getFile();
+                const url = URL.createObjectURL(file);
+                rebuilt.push({ name: file.name, path: url, file, handle: h });
+              }
+              if (rebuilt.length) {
+                audioFiles = rebuilt;
+                updateAudioList();
+                showMessage('已自动恢复上次播放列表 ✅', 'success');
+                return true;
+              }
+            } catch (e) {
+              console.warn('句柄恢复失败，尝试清单匹配', e);
+            }
+          }
+          const manifestStr = localStorage.getItem('audioPlaylistManifest');
+          if (manifestStr) {
+            const manifest = JSON.parse(manifestStr);
+            if (Array.isArray(manifest) && manifest.length) {
+              showMessage('找到上次清单，可点击“一键恢复上次列表”进行匹配恢复。', 'success');
+              return false;
+            }
+          }
+          return false;
+        }
+
+        // 一键恢复（清单匹配）
+        async function restoreByManifest() {
+          try {
+            const manifestStr = localStorage.getItem('audioPlaylistManifest');
+            if (!manifestStr) {
+              showMessage('没有找到可用的清单', 'error'); return;
+            }
+            const manifest = JSON.parse(manifestStr);
+            if (!Array.isArray(manifest) || !manifest.length) {
+              showMessage('清单为空', 'error'); return;
+            }
+            const picked = await pickMultipleFiles();
+            const byKey = new Map(picked.map(p => [(p.name + '::' + (p.file?.size || 0)), p]));
+            const matched = [];
+            for (const m of manifest) {
+              const key = m.name + '::' + (m.size || 0);
+              const f = byKey.get(key) || picked.find(p => p.name === m.name);
+              if (f) matched.push(f);
+            }
+            if (!matched.length) {
+              showMessage('未匹配到任何文件，请确认选择了相同的文件夹/文件', 'error'); return;
+            }
+            audioFiles.forEach(f => { try { URL.revokeObjectURL(f.path); } catch(_){} });
+            audioFiles = matched;
+            updateAudioList();
+            await savePersistentPlaylist();
+            showMessage(`已恢复 ${matched.length} 个文件 ✅`, 'success');
+          } catch (e) {
+            console.error(e);
+            showMessage('恢复失败，请重试', 'error');
+          }
+        }
+
+        // ================== 页面初始化 ==================
         document.addEventListener('DOMContentLoaded', function() {
             // 初始化WaveSurfer
             initWaveSurfer();
@@ -646,28 +815,37 @@
             // 初始化文件选择和拖放事件
             initFileInputs();
             
-            // 初始化模式切换按钮
+            // 模式切换
             document.getElementById('modeToggleBtn').addEventListener('click', togglePlayerMode);
             document.getElementById('liteModeModeToggleBtn').addEventListener('click', togglePlayerMode);
-            
-            // 初始化进度条点击事件
+
+            // 简洁模式进度条点击
             document.querySelector('.progress-container').addEventListener('click', function(e) {
                 const container = this.getBoundingClientRect();
                 const clickPosition = (e.clientX - container.left) / container.width;
-                
                 if (currentAudio) {
                     currentAudio.currentTime = currentAudio.duration * clickPosition;
                     updateProgressBar();
                 }
             });
+
+            // 新增按钮事件
+            document.getElementById('addByPickerButton').addEventListener('click', async () => {
+              const files = await pickMultipleFiles();
+              if (!files.length) return;
+              audioFiles.push(...files);
+              updateAudioList();
+              await savePersistentPlaylist();
+              showMessage(`成功添加 ${files.length} 个文件（已开启可恢复）`, 'success');
+            });
+            document.getElementById('restoreButton').addEventListener('click', restoreByManifest);
             
-            // 从localStorage加载播放列表
-            loadPlaylistFromStorage();
+            // 尝试自动恢复（句柄优先；否则提示可一键恢复）
+            tryAutoRestoreOnLoad();
         });
 
-        // 初始化WaveSurfer
+        // ================== WaveSurfer ==================
         function initWaveSurfer() {
-            // 创建完整模式的WaveSurfer实例
             wavesurfer = WaveSurfer.create({
                 container: '#waveform',
                 waveColor: '#4a6fa5',
@@ -681,18 +859,13 @@
                 plugins: []
             });
 
-            // 监听完整模式WaveSurfer事件
             wavesurfer.on('ready', function() {
                 const totalTimeDisplay = document.getElementById('totalTime');
                 const liteTotalTimeDisplay = document.getElementById('liteTotalTime');
-                
                 const duration = wavesurfer.getDuration();
                 totalTimeDisplay.textContent = formatTime(duration);
                 liteTotalTimeDisplay.textContent = formatTime(duration);
-                
                 document.getElementById('loopEnd').value = duration.toFixed(1);
-                
-                // 如果是简洁模式，确保音频元素也能播放
                 if (isLiteMode && currentAudio) {
                     currentAudio.play();
                 }
@@ -701,24 +874,17 @@
             wavesurfer.on('audioprocess', function() {
                 const currentTime = wavesurfer.getCurrentTime();
                 document.getElementById('currentTime').textContent = formatTime(currentTime);
-                
-                // 处理循环播放
                 if (isLooping) {
                     const loopEnd = parseFloat(document.getElementById('loopEnd').value);
                     if (currentTime >= loopEnd) {
-                        // 判断循环次数
                         const maxLoops = parseInt(document.getElementById('loopCount').value);
                         if (maxLoops === 0 || loopCounter < maxLoops) {
                             const loopStart = parseFloat(document.getElementById('loopStart').value);
                             wavesurfer.seekTo(loopStart / wavesurfer.getDuration());
-                            if (maxLoops > 0) {
-                                loopCounter++;
-                            }
+                            if (maxLoops > 0) loopCounter++;
                         } else {
-                            // 达到最大循环次数，停止循环
                             isLooping = false;
                             if (loopRegion) {
-                                // 修改区域样式表示循环已停止
                                 loopRegion.element.style.backgroundColor = 'rgba(74, 111, 165, 0.1)';
                             }
                         }
@@ -726,41 +892,24 @@
                 }
             });
             
-            // 播放状态监听
             wavesurfer.on('play', function() {
                 document.getElementById('playPauseButton').textContent = "暂停";
                 document.getElementById('litePlayPauseButton').textContent = "⏸️";
-                
-                // 如果在简洁模式下，同步音频元素的播放
-                if (isLiteMode && currentAudio && currentAudio.paused) {
-                    currentAudio.play();
-                }
+                if (isLiteMode && currentAudio && currentAudio.paused) currentAudio.play();
             });
             
             wavesurfer.on('pause', function() {
                 document.getElementById('playPauseButton').textContent = "播放";
                 document.getElementById('litePlayPauseButton').textContent = "▶️";
-                
-                // 如果在简洁模式下，同步音频元素的暂停
-                if (isLiteMode && currentAudio && !currentAudio.paused) {
-                    currentAudio.pause();
-                }
+                if (isLiteMode && currentAudio && !currentAudio.paused) currentAudio.pause();
             });
 
-            // 播放/暂停按钮
-            document.getElementById('playPauseButton').addEventListener('click', function() {
-                togglePlayPause();
-            });
-            
-            // 简洁模式播放/暂停按钮
-            document.getElementById('litePlayPauseButton').addEventListener('click', function() {
-                togglePlayPause();
-            });
+            document.getElementById('playPauseButton').addEventListener('click', togglePlayPause);
+            document.getElementById('litePlayPauseButton').addEventListener('click', togglePlayPause);
         }
         
-        // 初始化文件选择和拖放功能
+        // ================== 文件添加/拖放 ==================
         function initFileInputs() {
-            // 添加文件按钮点击事件
             document.getElementById('addFilesButton').addEventListener('click', function() {
                 const input = document.getElementById('audioFiles');
                 if (input.files.length > 0) {
@@ -770,193 +919,124 @@
                 }
             });
             
-            // 文件选择变化事件
             document.getElementById('audioFiles').addEventListener('change', function() {
                 if (this.files.length > 0) {
                     handleSelectedFiles(this.files);
                 }
             });
             
-            // 拖放区域事件
             const dropArea = document.getElementById('dropArea');
-            
-            // 阻止默认拖放操作
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
                 dropArea.addEventListener(eventName, preventDefaults, false);
                 document.body.addEventListener(eventName, preventDefaults, false);
             });
-            
-            // 突出显示拖放区域
             ['dragenter', 'dragover'].forEach(eventName => {
                 dropArea.addEventListener(eventName, function() {
                     dropArea.classList.add('drag-over');
                 }, false);
             });
-            
             ['dragleave', 'drop'].forEach(eventName => {
                 dropArea.addEventListener(eventName, function() {
                     dropArea.classList.remove('drag-over');
                 }, false);
             });
-            
-            // 处理拖放的文件
             dropArea.addEventListener('drop', function(e) {
                 const dt = e.dataTransfer;
                 const files = dt.files;
-                
-                if (files.length > 0) {
-                    handleSelectedFiles(files);
-                }
+                if (files.length > 0) handleSelectedFiles(files);
             }, false);
         }
-        
-        // 阻止默认拖放行为
         function preventDefaults(e) {
             e.preventDefault();
             e.stopPropagation();
         }
-        
-        // 处理选择的文件
         function handleSelectedFiles(files) {
             let addedCount = 0;
             let invalidCount = 0;
-            
-            // 过滤并添加音频文件
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
-                // 检查是否为音频文件
                 if (file.type.startsWith('audio/') || isAudioFile(file.name)) {
-                    // 创建文件的URL
                     const fileUrl = URL.createObjectURL(file);
-                    
-                    // 添加到数组
-                    audioFiles.push({
-                        name: file.name,
-                        path: fileUrl,
-                        file: file
-                    });
-                    
+                    audioFiles.push({ name: file.name, path: fileUrl, file: file });
                     addedCount++;
                 } else {
                     invalidCount++;
                 }
             }
-            
-            // 清空文件输入
             document.getElementById('audioFiles').value = '';
-            
-            // 显示结果消息
             let message = '';
             if (addedCount > 0) {
                 message += `成功添加了 ${addedCount} 个音频文件。`;
-                // 更新音频列表
                 updateAudioList();
-                // 保存到localStorage
-                savePlaylistToStorage();
+                savePlaylistToStorage(); // 内部会自动写入更强持久化
             }
-            
             if (invalidCount > 0) {
                 message += `有 ${invalidCount} 个文件不是音频文件，已忽略。`;
             }
-            
             showMessage(message, addedCount > 0 ? 'success' : 'error');
         }
-        
-        // 检查文件扩展名是否为音频文件
         function isAudioFile(filename) {
             const audioExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac'];
             const ext = filename.substring(filename.lastIndexOf('.')).toLowerCase();
             return audioExtensions.includes(ext);
         }
-        
-        // 显示消息
+
+        // ================== 消息/列表 ==================
         function showMessage(text, type) {
             const messageBox = document.getElementById('message');
             messageBox.textContent = text;
             messageBox.className = 'message-box';
-            
             if (type === 'success') {
                 messageBox.classList.add('success-message');
             } else if (type === 'error') {
                 messageBox.classList.add('error-message');
             }
-            
             messageBox.style.display = 'block';
-            
-            // 3秒后隐藏消息
-            setTimeout(() => {
-                messageBox.style.display = 'none';
-            }, 3000);
+            setTimeout(() => { messageBox.style.display = 'none'; }, 3000);
         }
-        
-        // 更新音频列表显示
         function updateAudioList() {
             const audioList = document.getElementById('audioList');
             audioList.innerHTML = '';
-            
             if (audioFiles.length === 0) {
                 audioList.innerHTML = '<li>没有音频文件，请添加一些文件</li>';
                 return;
             }
-            
             audioFiles.forEach((file, index) => {
                 const li = document.createElement('li');
                 li.className = 'audio-item';
                 li.dataset.index = index;
-                
                 const playButton = document.createElement('button');
                 playButton.className = 'play-button';
                 playButton.textContent = '播放';
                 playButton.addEventListener('click', () => playAudio(file, index));
-                
                 const removeButton = document.createElement('button');
                 removeButton.className = 'remove-button';
                 removeButton.textContent = '移除';
                 removeButton.addEventListener('click', () => showRemoveConfirmation(file, index));
-                
                 const nameSpan = document.createElement('span');
                 nameSpan.className = 'audio-name';
-                nameSpan.title = file.name; // 添加悬停提示
+                nameSpan.title = file.name;
                 nameSpan.textContent = file.name;
-                
                 li.appendChild(playButton);
                 li.appendChild(removeButton);
                 li.appendChild(nameSpan);
                 audioList.appendChild(li);
             });
         }
-        
-        // 保存播放列表到localStorage
+
+        // 覆盖：保存到 localStorage（保留原意）+ 写入更强持久化
         function savePlaylistToStorage() {
-            // 注意：我们只能保存文件名，不能保存File对象和ObjectURL
-            // 这仅用于恢复列表UI，不能恢复实际的文件访问
             try {
-                const playlistInfo = audioFiles.map(file => ({
-                    name: file.name
-                }));
+                const playlistInfo = audioFiles.map(file => ({ name: file.name }));
                 localStorage.setItem('audioPlaylist', JSON.stringify(playlistInfo));
             } catch (e) {
                 console.error('保存播放列表失败:', e);
             }
+            // 新增：写入句柄/清单
+            savePersistentPlaylist();
         }
-        
-        // 从localStorage加载播放列表
-        function loadPlaylistFromStorage() {
-            try {
-                const savedPlaylist = localStorage.getItem('audioPlaylist');
-                if (savedPlaylist) {
-                    const playlistInfo = JSON.parse(savedPlaylist);
-                    if (playlistInfo.length > 0) {
-                        // 显示恢复提示
-                        showMessage('发现之前的播放列表，请重新添加文件以恢复', 'success');
-                    }
-                }
-            } catch (e) {
-                console.error('加载播放列表失败:', e);
-            }
-        }
-        
-        // 统一的播放/暂停控制
+
+        // ================== 播放控制/模式 ==================
         function togglePlayPause() {
             if (isLiteMode) {
                 if (currentAudio) {
@@ -972,8 +1052,6 @@
                 wavesurfer && wavesurfer.playPause();
             }
         }
-        
-        // 更新进度条
         function updateProgressBar() {
             if (currentAudio && !isNaN(currentAudio.duration)) {
                 const progressPercent = (currentAudio.currentTime / currentAudio.duration) * 100;
@@ -981,47 +1059,27 @@
                 document.getElementById('liteCurrentTime').textContent = formatTime(currentAudio.currentTime);
             }
         }
-        
-        // 切换播放器模式
         function togglePlayerMode() {
             isLiteMode = !isLiteMode;
             const fullContainer = document.querySelector('.container');
             const liteModeContainer = document.getElementById('liteModeContainer');
-            
             if (isLiteMode) {
-                // 切换到简洁模式
                 fullContainer.style.display = 'none';
                 liteModeContainer.style.display = 'flex';
-                
-                // 暂停波形图播放
-                if (wavesurfer && wavesurfer.isPlaying()) {
-                    wavesurfer.pause();
-                }
-                
-                // 确保音频元素正确播放
+                if (wavesurfer && wavesurfer.isPlaying()) wavesurfer.pause();
                 if (currentAudio) {
                     if (!currentAudio.paused) {
-                        // 如果音频正在播放，就继续
                         document.getElementById('litePlayPauseButton').textContent = "⏸️";
                     } else {
                         document.getElementById('litePlayPauseButton').textContent = "▶️";
                     }
-                    
-                    // 设置进度更新计时器
                     if (updateTimer) clearInterval(updateTimer);
                     updateTimer = setInterval(updateProgressBar, 100);
                 }
-                
-                // 更新简洁模式标题
-                if (currentAudioFile) {
-                    document.getElementById('liteTitleDisplay').textContent = currentAudioFile.name;
-                }
+                if (currentAudioFile) document.getElementById('liteTitleDisplay').textContent = currentAudioFile.name;
             } else {
-                // 切换到完整模式
                 fullContainer.style.display = 'block';
                 liteModeContainer.style.display = 'none';
-                
-                // 如果简洁模式下音频正在播放，则同步到波形图
                 if (currentAudio && !currentAudio.paused) {
                     wavesurfer.play();
                     wavesurfer.seekTo(currentAudio.currentTime / currentAudio.duration);
@@ -1029,44 +1087,26 @@
             }
         }
 
-        // 播放选定的音频
+        // ================== 播放/高亮 ==================
         function playAudio(file, index) {
             const currentPlayer = document.getElementById('currentPlayer');
             const currentTitle = document.getElementById('currentTitle');
-            
-            // 保存当前文件信息
             currentAudioFile = file;
             currentAudioFile.index = index;
-            
-            // 重置循环状态
             isLooping = false;
             document.getElementById('loopStart').value = 0;
             document.getElementById('loopEnd').value = 0;
             loopCounter = 0;
-            
-            // 移除之前的循环区域
-            if (loopRegion) {
-                loopRegion = null;
-            }
-            
-            // 设置标题
+            if (loopRegion) loopRegion = null;
             currentTitle.textContent = '当前播放: ' + file.name;
             document.getElementById('liteTitleDisplay').textContent = file.name;
-            
-            // 显示播放器
             currentPlayer.style.display = 'block';
-            
-            // 重置速度选择器到正常速度
             document.getElementById('playbackSpeed').value = '1';
             document.getElementById('litePlaybackSpeed').value = '1';
-            
-            // 停止当前音频元素的播放
             if (currentAudio) {
                 currentAudio.pause();
                 currentAudio.remove();
             }
-            
-            // 创建新的音频元素
             currentAudio = new Audio(file.path);
             currentAudio.addEventListener('timeupdate', updateProgressBar);
             currentAudio.addEventListener('loadedmetadata', function() {
@@ -1074,48 +1114,29 @@
                 if (isLiteMode) {
                     currentAudio.play();
                     document.getElementById('litePlayPauseButton').textContent = "⏸️";
-                    
-                    // 设置进度更新计时器
                     if (updateTimer) clearInterval(updateTimer);
                     updateTimer = setInterval(updateProgressBar, 100);
                 }
             });
-            
-            // 播放结束事件
             currentAudio.addEventListener('ended', function() {
-                // 如果是最后一首，循环到第一首，否则播放下一首
                 let nextIndex = index + 1;
                 if (nextIndex >= audioFiles.length) nextIndex = 0;
-                
                 playAudio(audioFiles[nextIndex], nextIndex);
             });
-            
-            // 加载音频到WaveSurfer
             wavesurfer.load(file.path);
-            
             wavesurfer.on('ready', function() {
-                // 设置播放速度
                 wavesurfer.setPlaybackRate(1);
                 currentAudio.playbackRate = 1;
-                
-                if (!isLiteMode) {
-                    // 自动播放
-                    wavesurfer.play();
-                }
+                if (!isLiteMode) wavesurfer.play();
             });
-            
-            // 高亮当前播放的项目
             highlightPlayingItem(index);
         }
-        
-        // 高亮当前播放的项目
         function highlightPlayingItem(index) {
             const items = document.querySelectorAll('.audio-item');
             items.forEach(item => {
                 item.style.backgroundColor = '#f9f9f9';
                 item.style.borderColor = '#e1e4e8';
             });
-            
             const currentItem = document.querySelector(`.audio-item[data-index="${index}"]`);
             if (currentItem) {
                 currentItem.style.backgroundColor = '#e3f2fd';
@@ -1123,7 +1144,7 @@
             }
         }
 
-        // 显示删除确认对话框
+        // ================== 删除/确认 ==================
         let fileToRemove = null;
         let indexToRemove = -1;
         function showRemoveConfirmation(file, index) {
@@ -1131,208 +1152,122 @@
             indexToRemove = index;
             document.getElementById('confirmDialog').style.display = 'flex';
         }
-
-        // 确认删除按钮事件
         document.getElementById('confirmRemove').addEventListener('click', function() {
             if (fileToRemove !== null && indexToRemove !== -1) {
                 removeAudio(fileToRemove, indexToRemove);
             }
             document.getElementById('confirmDialog').style.display = 'none';
         });
-
-        // 取消删除按钮事件
         document.getElementById('cancelRemove').addEventListener('click', function() {
             document.getElementById('confirmDialog').style.display = 'none';
             fileToRemove = null;
             indexToRemove = -1;
         });
-
-        // 移除音频文件
         function removeAudio(file, index) {
-            // 如果当前正在播放这个文件，停止播放
             if (currentAudioFile && currentAudioFile.name === file.name) {
                 wavesurfer.stop();
-                if (currentAudio) {
-                    currentAudio.pause();
-                }
+                if (currentAudio) currentAudio.pause();
                 document.getElementById('currentPlayer').style.display = 'none';
                 currentAudioFile = null;
             }
-            
-            // 释放 URL 对象
             URL.revokeObjectURL(file.path);
-            
-            // 从数组中移除
             audioFiles.splice(index, 1);
-            
-            // 更新列表
             updateAudioList();
-            
-            // 保存到localStorage
             savePlaylistToStorage();
-            
             showMessage('已移除音频文件', 'success');
         }
 
-        // 格式化时间
+        // ================== 其它控件 ==================
         function formatTime(seconds) {
             const mins = Math.floor(seconds / 60);
             const secs = Math.floor(seconds % 60);
             return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
-
-        // 添加前进/后退控制功能
         document.getElementById('rewindButton').addEventListener('click', function() {
             if (!isLiteMode && wavesurfer) {
                 const currentTime = wavesurfer.getCurrentTime();
                 wavesurfer.seekTo(Math.max(0, currentTime - 5) / wavesurfer.getDuration());
-                
-                // 同步到音频元素
-                if (currentAudio) {
-                    currentAudio.currentTime = Math.max(0, currentTime - 5);
-                }
+                if (currentAudio) currentAudio.currentTime = Math.max(0, currentTime - 5);
             }
         });
-
         document.getElementById('forwardButton').addEventListener('click', function() {
             if (!isLiteMode && wavesurfer) {
                 const currentTime = wavesurfer.getCurrentTime();
                 wavesurfer.seekTo(Math.min(wavesurfer.getDuration(), currentTime + 5) / wavesurfer.getDuration());
-                
-                // 同步到音频元素
-                if (currentAudio) {
-                    currentAudio.currentTime = Math.min(currentAudio.duration, currentTime + 5);
-                }
+                if (currentAudio) currentAudio.currentTime = Math.min(currentAudio.duration, currentTime + 5);
             }
         });
-        
-        // 简洁模式的前进/后退控制
         document.getElementById('liteRewindButton').addEventListener('click', function() {
             if (currentAudio) {
                 currentAudio.currentTime = Math.max(0, currentAudio.currentTime - 5);
                 updateProgressBar();
-                
-                // 同步到波形图，如果在完整模式
-                if (!isLiteMode && wavesurfer) {
-                    wavesurfer.seekTo(currentAudio.currentTime / currentAudio.duration);
-                }
+                if (!isLiteMode && wavesurfer) wavesurfer.seekTo(currentAudio.currentTime / currentAudio.duration);
             }
         });
-
         document.getElementById('liteForwardButton').addEventListener('click', function() {
             if (currentAudio) {
                 currentAudio.currentTime = Math.min(currentAudio.duration, currentAudio.currentTime + 5);
                 updateProgressBar();
-                
-                // 同步到波形图，如果在完整模式
-                if (!isLiteMode && wavesurfer) {
-                    wavesurfer.seekTo(currentAudio.currentTime / currentAudio.duration);
-                }
+                if (!isLiteMode && wavesurfer) wavesurfer.seekTo(currentAudio.currentTime / currentAudio.duration);
             }
         });
-        
-        // 上一首/下一首控制
         document.getElementById('litePrevButton').addEventListener('click', function() {
             if (!currentAudioFile || audioFiles.length === 0) return;
-            
             let prevIndex = currentAudioFile.index - 1;
-            if (prevIndex < 0) prevIndex = audioFiles.length - 1; // 循环到最后一个
-            
+            if (prevIndex < 0) prevIndex = audioFiles.length - 1;
             playAudio(audioFiles[prevIndex], prevIndex);
         });
-        
         document.getElementById('liteNextButton').addEventListener('click', function() {
             if (!currentAudioFile || audioFiles.length === 0) return;
-            
             let nextIndex = currentAudioFile.index + 1;
-            if (nextIndex >= audioFiles.length) nextIndex = 0; // 循环到第一个
-            
+            if (nextIndex >= audioFiles.length) nextIndex = 0;
             playAudio(audioFiles[nextIndex], nextIndex);
         });
-
-        // 播放速度控制
         document.getElementById('playbackSpeed').addEventListener('change', function() {
             const speed = parseFloat(this.value);
-            if (wavesurfer) {
-                wavesurfer.setPlaybackRate(speed);
-            }
+            if (wavesurfer) wavesurfer.setPlaybackRate(speed);
             document.getElementById('litePlaybackSpeed').value = this.value;
-            if (currentAudio) {
-                currentAudio.playbackRate = speed;
-            }
+            if (currentAudio) currentAudio.playbackRate = speed;
         });
-        
-        // 简洁模式播放速度控制
         document.getElementById('litePlaybackSpeed').addEventListener('change', function() {
             const speed = parseFloat(this.value);
             document.getElementById('playbackSpeed').value = this.value;
-            if (currentAudio) {
-                currentAudio.playbackRate = speed;
-            }
-            if (wavesurfer) {
-                wavesurfer.setPlaybackRate(speed);
-            }
+            if (currentAudio) currentAudio.playbackRate = speed;
+            if (wavesurfer) wavesurfer.setPlaybackRate(speed);
         });
 
-        // 设置当前时间为循环起点
+        // 循环段设置与显示
         document.getElementById('setLoopStartBtn').addEventListener('click', function() {
             const startInput = document.getElementById('loopStart');
             const currentTime = wavesurfer.getCurrentTime();
             startInput.value = currentTime.toFixed(1);
-            
-            // 确保开始时间不大于结束时间
             const endTime = parseFloat(document.getElementById('loopEnd').value);
             if (currentTime > endTime) {
-                document.getElementById('loopEnd').value = Math.min(
-                    wavesurfer.getDuration(), 
-                    currentTime + 5
-                ).toFixed(1);
+                document.getElementById('loopEnd').value = Math.min(wavesurfer.getDuration(), currentTime + 5).toFixed(1);
             }
-            
-            // 如果已经在循环中，更新循环区域
             updateLoopRegion();
         });
-
-        // 设置当前时间为循环终点
         document.getElementById('setLoopEndBtn').addEventListener('click', function() {
             const endInput = document.getElementById('loopEnd');
             const currentTime = wavesurfer.getCurrentTime();
             endInput.value = currentTime.toFixed(1);
-            
-            // 确保结束时间不小于开始时间
             const startTime = parseFloat(document.getElementById('loopStart').value);
             if (currentTime < startTime) {
-                document.getElementById('loopStart').value = Math.max(
-                    0, 
-                    currentTime - 5
-                ).toFixed(1);
+                document.getElementById('loopStart').value = Math.max(0, currentTime - 5).toFixed(1);
             }
-            
-            // 如果已经在循环中，更新循环区域
             updateLoopRegion();
         });
-
-        // 更新循环区域的视觉显示
         function updateLoopRegion() {
             const loopStart = parseFloat(document.getElementById('loopStart').value);
             const loopEnd = parseFloat(document.getElementById('loopEnd').value);
-            
-            if (loopStart >= loopEnd) {
-                return;
-            }
-            
-            // 如果已有循环区域，先移除
+            if (loopStart >= loopEnd) return;
             if (loopRegion && loopRegion.element && loopRegion.element.parentNode) {
                 loopRegion.element.parentNode.removeChild(loopRegion.element);
                 loopRegion = null;
             }
-            
-            // 创建循环区域的视觉显示
             const totalDuration = wavesurfer.getDuration();
             const startPercent = (loopStart / totalDuration) * 100;
             const endPercent = (loopEnd / totalDuration) * 100;
-            
-            // 在波形图上创建循环区域的视觉标记
             const waveformElement = document.getElementById('waveform');
             const regionElement = document.createElement('div');
             regionElement.className = 'region-loop';
@@ -1343,59 +1278,28 @@
             regionElement.style.height = '100%';
             regionElement.style.pointerEvents = 'none';
             regionElement.style.zIndex = '1';
-            
-            // 给波形图容器添加相对定位，如果还没有的话
             if (waveformElement.style.position !== 'relative') {
                 waveformElement.style.position = 'relative';
             }
-            
-            // 添加到DOM中
             waveformElement.appendChild(regionElement);
-            
-            // 保存循环区域引用
             loopRegion = { element: regionElement };
         }
-
-        // 开始循环播放
         document.getElementById('startLoopBtn').addEventListener('click', function() {
             const loopStart = parseFloat(document.getElementById('loopStart').value);
             const loopEnd = parseFloat(document.getElementById('loopEnd').value);
-            
-            if (loopStart >= loopEnd) {
-                alert('开始时间必须小于结束时间');
-                return;
-            }
-            
+            if (loopStart >= loopEnd) { alert('开始时间必须小于结束时间'); return; }
             if (loopEnd > wavesurfer.getDuration()) {
                 document.getElementById('loopEnd').value = wavesurfer.getDuration().toFixed(1);
             }
-            
-            // 设置循环状态
             isLooping = true;
-            loopCounter = 0; // 重置循环计数
-            
-            // 更新循环区域的视觉显示
+            loopCounter = 0;
             updateLoopRegion();
-            
-            // 跳转到循环开始点
             wavesurfer.seekTo(loopStart / wavesurfer.getDuration());
-            
-            // 如果音频元素存在，也同步设置
-            if (currentAudio) {
-                currentAudio.currentTime = loopStart;
-            }
-            
-            // 如果暂停中则开始播放
-            if (!wavesurfer.isPlaying()) {
-                wavesurfer.play();
-            }
+            if (currentAudio) currentAudio.currentTime = loopStart;
+            if (!wavesurfer.isPlaying()) wavesurfer.play();
         });
-
-        // 停止循环播放
         document.getElementById('stopLoopBtn').addEventListener('click', function() {
             isLooping = false;
-            
-            // 改变循环区域的样式以表示循环已停止
             if (loopRegion && loopRegion.element) {
                 loopRegion.element.style.backgroundColor = 'rgba(74, 111, 165, 0.1)';
             }
