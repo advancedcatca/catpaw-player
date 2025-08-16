@@ -15,17 +15,27 @@
     .message-box{display:none;margin:8px 0;padding:8px 10px;border-radius:6px;font-size:14px;text-align:center}
     .success-message{display:block;background:#d4edda;color:#155724;border:1px solid #c3e6cb}
     .error-message{display:block;background:#f8d7da;color:#721c24;border:1px solid #f5c6cb}
-    .add-button{background:#27ae60;color:#fff;border:none;border-radius:6px;padding:10px 14px;font-weight:700;cursor:pointer}
-    .small-button{font-size:14px;padding:6px 10px;border-radius:4px}
-    #audioFiles{display:none}
-    .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;margin-top:10px}
+    .add-button{background:#27ae60;color:#fff;border:none;border-radius:6px;padding:10px 14px;font-weight:700;cursor:pointer;display:inline-block}
+    .small-button{font-size:14px;padding:6px 10px;border-radius:4px;background:#27ae60;color:#fff;border:none;cursor:pointer}
+    .inline-buttons{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    /* 文件输入隐藏但可被 label 触发（兼容 WebView） */
+    #audioFiles{position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0}
 
     /* 播放列表：单个列表框 */
-    .playlist-box{border:1px solid #e1e4e8;border-radius:10px;padding:8px;max-height:300px;overflow:auto;background:#fafafa}
-    .playlist-item{display:flex;align-items:center;padding:8px 10px;border-radius:6px;cursor:pointer;font-weight:500;color:#444}
+    .playlist-box{border:1px solid #e1e4e8;border-radius:10px;padding:8px;max-height:300px;overflow:auto;background:#fafafa;margin-top:12px}
+    .playlist-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;cursor:pointer;font-weight:500;color:#444}
     .playlist-item:hover{background:#eef6ff}
     .playlist-item.active{background:#e3f2fd;border:1px solid #2196f3}
+    .playlist-item.selected{outline:2px solid #a3c5ff;background:#f0f8ff}
     .playlist-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .playlist-actions{display:flex;justify-content:flex-end;margin-top:8px}
+    .icon-only{background:#e74c3c;color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer}
+    .icon-only:hover{background:#c0392b}
+
+    /* 正在播放指示点 */
+    .np{width:10px;height:10px;border-radius:50%;background:#4a6fa5;opacity:0;flex:0 0 auto}
+    .playlist-item.active .np{opacity:1;animation:pulse 1.2s infinite ease-in-out}
+    @keyframes pulse{0%{transform:scale(.9);opacity:.6}50%{transform:scale(1.2);opacity:1}100%{transform:scale(.9);opacity:.6}}
 
     /* 播放器 */
     .current-player{margin-top:18px;border:1px solid #e1e4e8;border-radius:10px;padding:16px;background:#fff;box-shadow:0 3px 10px rgba(0,0,0,.05);position:relative}
@@ -33,12 +43,11 @@
     .waveform-container{margin-top:8px;border:1px solid #e1e4e8;border-radius:8px;padding:12px;background:#f9f9f9}
     #waveform{height:100px}
     .time-display{font-family:monospace;text-align:center;margin:8px 0;color:#666}
-    /* 主控按钮：与简洁模式一致的圆形小按钮 */
-    .round-row{display:flex;justify-content:center;gap:8px;margin-top:6px}
+    /* 主控按钮：与简洁模式一致的圆形小按钮（包含切换按钮） */
+    .round-row{display:flex;justify-content:center;gap:8px;margin-top:6px;flex-wrap:wrap}
     .round-btn{background:#4a6fa5;color:#fff;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:none;cursor:pointer}
     .round-btn:hover{background:#2c3e50}
 
-    /* 速度 & 复读（保持原有紧凑样式） */
     .speed-control{display:flex;align-items:center;margin-top:12px;background:#f8f9fa;padding:8px;border-radius:8px;border:1px solid #e1e4e8;font-size:14px}
     .speed-control label{margin-right:10px;font-weight:600}
     .speed-control select{padding:6px;border-radius:4px;border:1px solid #ddd}
@@ -47,11 +56,6 @@
     .loop-times{display:flex;gap:10px;margin-top:8px}
     .loop-input{width:80px;padding:5px;border-radius:4px;border:1px solid #ddd}
     .region-loop{background:rgba(74,111,165,.2);position:absolute;top:0;height:100%;pointer-events:none}
-
-    /* 清空按钮（仅图标） */
-    .player-footer{margin-top:12px;display:flex;justify-content:flex-end}
-    .icon-only{background:#e74c3c;color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer}
-    .icon-only:hover{background:#c0392b}
 
     /* 简洁模式 */
     .lite-mode-container{position:fixed;inset:0;background:#f8f9fa;z-index:1000;display:none;justify-content:center;align-items:center}
@@ -65,7 +69,6 @@
     .lite-control-button{background:#4a6fa5;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:none}
     .lite-control-button:hover{background:#2c3e50}
 
-    /* 拖放 */
     .drop-area{border:2px dashed #4a6fa5;border-radius:8px;padding:18px;text-align:center;background:#f0f7ff;margin-bottom:12px}
     .drop-area.drag-over{background:#e3f2fd;border-color:#2196f3;}
   </style>
@@ -75,66 +78,67 @@
     <h1>猫jio Player</h1>
 
     <div class="local-file-section">
-      <div class="tip-box">使用浏览器 File API 直接播放本地文件（不上传）。关闭页面后支持自动/一键恢复。</div>
+      <div class="tip-box">使用浏览器 File API 直接播放本地文件（不上传）。关闭页面后支持自动/一键恢复。部分 App 内浏览器禁止脚本触发文件选择，因此下面的“添加文件”采用原生触发，确保可用。</div>
       <div id="message" class="message-box"></div>
+
+      <!-- 顶部：添加文件（用 label 触发 input，兼容 WebView） -->
+      <div class="inline-buttons" style="margin-bottom:10px">
+        <label for="audioFiles" id="addFilesLabel" class="add-button">添加文件</label>
+        <input type="file" id="audioFiles" accept=".mp3,.wav,.ogg,.m4a,.flac" multiple>
+      </div>
+
       <div id="dropArea" class="drop-area">拖放音频文件到这里</div>
 
-      <div class="controls">
-        <input type="file" id="audioFiles" accept=".mp3,.wav,.ogg,.m4a,.flac" multiple>
-        <button id="addFilesButton" class="add-button">添加文件</button>
-        <button id="addByPickerButton" class="add-button small-button">系统文件选择器（可恢复）</button>
-        <button id="restoreButton" class="add-button small-button">一键恢复上次列表</button>
-        <button id="addFolderButton" class="add-button small-button">添加文件夹（尽量）</button>
-        <button id="importZipButton" class="add-button small-button">导入 ZIP</button>
+      <!-- 其他添加方式放下面 -->
+      <div class="inline-buttons">
+        <button id="addByPickerButton" class="small-button">系统文件选择器（可恢复）</button>
+        <button id="restoreButton" class="small-button">一键恢复上次列表</button>
+        <button id="addFolderButton" class="small-button">添加文件夹（尽量）</button>
+        <button id="importZipButton" class="small-button">导入 ZIP</button>
       </div>
     </div>
 
     <div class="player-section">
       <h2 style="margin:10px 0">我的音频库</h2>
-      <!-- 单列表框 -->
-      <div id="playlistBox" class="playlist-box">
-        <!-- li 动态生成 -->
+      <div id="playlistBox" class="playlist-box" tabindex="0" aria-label="播放列表（↑↓选择，Enter播放）"></div>
+      <!-- 垃圾桶移动到列表框下方 -->
+      <div class="playlist-actions">
+        <button id="clearPlaylistBtn" class="icon-only" title="清空列表">🗑️</button>
       </div>
 
       <div id="currentPlayer" class="current-player" style="display:none;">
         <div id="currentTitle" class="current-title">当前播放：</div>
 
-        <div class="waveform-container">
-          <div id="waveform"></div>
-        </div>
+        <div class="waveform-container"><div id="waveform"></div></div>
         <div class="time-display"><span id="currentTime">00:00</span> / <span id="totalTime">00:00</span></div>
 
-        <!-- 主控按钮：与简洁模式一致 -->
+        <!-- 主控按钮一排：加入“切换简洁版”🔄 -->
         <div class="round-row">
-          <button id="fullPrevButton"   class="round-btn" title="上一首">⏮️</button>
-          <button id="fullRewButton"    class="round-btn" title="后退5秒">⏪</button>
+          <button id="fullPrevButton" class="round-btn" title="上一首">⏮️</button>
+          <button id="fullRewButton" class="round-btn" title="后退5秒">⏪</button>
           <button id="fullPlayPauseButton" class="round-btn" title="播放/暂停">▶️</button>
-          <button id="fullFwdButton"    class="round-btn" title="前进5秒">⏩</button>
-          <button id="fullNextButton"   class="round-btn" title="下一首">⏭️</button>
+          <button id="fullFwdButton" class="round-btn" title="前进5秒">⏩</button>
+          <button id="fullNextButton" class="round-btn" title="下一首">⏭️</button>
+          <button id="toggleModeBtn" class="round-btn" title="切换简洁模式">🔄</button>
         </div>
 
-        <!-- 速度在复读前 -->
         <div class="speed-control">
           <label for="playbackSpeed">播放速度:</label>
           <select id="playbackSpeed">
-            <option value="0.5">0.5x</option>
-            <option value="0.75">0.75x</option>
+            <option value="0.5">0.5x</option><option value="0.75">0.75x</option>
             <option value="1" selected>1.0x (正常)</option>
-            <option value="1.25">1.25x</option>
-            <option value="1.5">1.5x</option>
-            <option value="1.75">1.75x</option>
-            <option value="2">2.0x</option>
+            <option value="1.25">1.25x</option><option value="1.5">1.5x</option>
+            <option value="1.75">1.75x</option><option value="2">2.0x</option>
           </select>
         </div>
 
-        <!-- 选段复读 -->
         <div class="loop-section">
           <div class="loop-header">选段复读</div>
-          <div class="controls" style="margin-top:0">
-            <button id="setLoopStartBtn" class="small-button" style="background:#4a6fa5;color:#fff">设为开始</button>
-            <button id="setLoopEndBtn" class="small-button" style="background:#4a6fa5;color:#fff">设为结束</button>
-            <button id="startLoopBtn" class="small-button" style="background:#4a6fa5;color:#fff">开始复读</button>
-            <button id="stopLoopBtn" class="small-button" style="background:#4a6fa5;color:#fff">停止复读</button>
+          <div class="inline-buttons" style="gap:8px">
+            <button id="setLoopStartBtn" class="small-button" style="background:#4a6fa5">设为开始</button>
+            <button id="setLoopEndBtn" class="small-button" style="background:#4a6fa5">设为结束</button>
+            <button id="startLoopBtn" class="small-button" style="background:#4a6fa5">开始复读</button>
+            <button id="stopLoopBtn" class="small-button" style="background:#4a6fa5">停止复读</button>
           </div>
           <div style="margin-top:6px">
             <label for="loopCount">复读次数 (0=无限):</label>
@@ -144,11 +148,6 @@
             <div><label for="loopStart">开始(秒):</label><input id="loopStart" type="number" min="0" step="0.1" value="0" class="loop-input"></div>
             <div><label for="loopEnd">结束(秒):</label><input id="loopEnd" type="number" min="0" step="0.1" value="0" class="loop-input"></div>
           </div>
-        </div>
-
-        <!-- 底部：清空列表（垃圾桶图标） -->
-        <div class="player-footer">
-          <button id="clearPlaylistBtn" class="icon-only" title="清空列表">🗑️</button>
         </div>
       </div>
     </div>
@@ -181,115 +180,38 @@
     </div>
   </div>
 
-  <!-- 确认对话框简化：直接用 confirm() 即可 -->
-
   <script>
     let wavesurfer=null,isLooping=false,loopCounter=0,loopRegion=null;
-    let audioFiles=[],currentAudioFile=null,currentAudio=null,updateTimer=null,isLiteMode=false;
+    let audioFiles=[],currentAudioFile=null,isLiteMode=false;
+    let selectedIndex=-1;
 
-    // —— IndexedDB 简版句柄存储（与之前一致） ——
-    const DB_NAME='catpaw-player', STORE='playlist';
-    function idb(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
-    async function idbSet(key,val){const db=await idb();return new Promise((res,rej)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put(val,key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}
-    async function idbGet(key){const db=await idb();return new Promise((res,rej)=>{const tx=db.transaction(STORE,'readonly');const rq=tx.objectStore(STORE).get(key);rq.onsuccess=()=>res(rq.result);rq.onerror=()=>rej(rq.error);});}
     const hasFS='showOpenFilePicker' in window;
-
-    const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 
     function showMessage(t,type){const m=document.getElementById('message');m.textContent=t;m.className='message-box '+(type==='error'?'error-message':'success-message');}
 
-    function sortPlaylist(){
-      audioFiles.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
-    }
-
+    function isAudioExt(n){return['.mp3','.wav','.ogg','.m4a','.flac','.aac'].some(x=>n.toLowerCase().endsWith(x));}
+    function sortPlaylist(){audioFiles.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));}
     function renderPlaylist(){
       const box=document.getElementById('playlistBox'); box.innerHTML='';
       if(!audioFiles.length){box.innerHTML='<div class="playlist-item" style="justify-content:center;color:#888">没有音频文件，请添加</div>';return;}
       audioFiles.forEach((f,i)=>{
         const li=document.createElement('div'); li.className='playlist-item'; li.dataset.index=i;
+        const dot=document.createElement('div'); dot.className='np';
+        const name=document.createElement('span'); name.className='playlist-name'; name.textContent=f.name;
+        li.appendChild(dot); li.appendChild(name);
         if(currentAudioFile && currentAudioFile.name===f.name) li.classList.add('active');
-        const span=document.createElement('span'); span.className='playlist-name'; span.textContent=f.name;
-        li.appendChild(span);
+        if(i===selectedIndex) li.classList.add('selected');
         li.addEventListener('click',()=>playAudio(f,i));
         box.appendChild(li);
       });
     }
-
-    async function savePersistentPlaylist(){
-      try{
-        const entries=audioFiles.map(f=>({name:f.name,size:f.file?.size||0,handle:f.handle||null}));
-        const allHaveHandles=hasFS && entries.every(e=>e.handle);
-        if(allHaveHandles){
-          await idbSet('handles', entries.map(e=>({handle:e.handle,name:e.name,size:e.size})));
-          localStorage.setItem('audioPlaylistManifest','');
-        }else{
-          localStorage.setItem('audioPlaylistManifest',JSON.stringify(entries.map(e=>({name:e.name,size:e.size}))));
-          await idbSet('handles',null);
-        }
-      }catch(e){console.error(e);}
+    function setSelected(i){
+      if(!audioFiles.length){selectedIndex=-1;return;}
+      selectedIndex=Math.max(0,Math.min(audioFiles.length-1,i)); renderPlaylist();
+      const el=document.querySelector(`.playlist-item[data-index="${selectedIndex}"]`); if(el) el.scrollIntoView({block:'nearest'});
     }
 
-    function isAudioExt(name){return ['.mp3','.wav','.ogg','.m4a','.flac','.aac'].some(ext=>name.toLowerCase().endsWith(ext));}
-
-    // —— 添加文件 / 拖放 ——
-    document.getElementById('addFilesButton').addEventListener('click',()=>document.getElementById('audioFiles').click());
-    document.getElementById('audioFiles').addEventListener('change',e=>{
-      const files=Array.from(e.target.files).filter(f=>f.type.startsWith('audio/')||isAudioExt(f.name)).map(f=>({name:f.name,path:URL.createObjectURL(f),file:f}));
-      audioFiles.push(...files); sortPlaylist(); renderPlaylist(); savePersistentPlaylist();
-      showMessage(`已添加 ${files.length} 个文件`,`success`);
-      if(!currentAudioFile && audioFiles.length) playAudio(audioFiles[0],0);
-      e.target.value='';
-    });
-
-    const drop=document.getElementById('dropArea');
-    ['dragenter','dragover','dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();}));
-    ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,()=>drop.classList.add('drag-over')));
-    ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,()=>drop.classList.remove('drag-over')));
-    drop.addEventListener('drop',e=>{
-      const files=Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('audio/')||isAudioExt(f.name)).map(f=>({name:f.name,path:URL.createObjectURL(f),file:f}));
-      audioFiles.push(...files); sortPlaylist(); renderPlaylist(); savePersistentPlaylist();
-      showMessage(`拖入 ${files.length} 个文件`,`success`);
-      if(!currentAudioFile && audioFiles.length) playAudio(audioFiles[0],0);
-    });
-
-    // —— 其它添加方式（保持原功能） ——
-    async function pickMultipleFiles(){
-      if(hasFS){
-        const handles=await window.showOpenFilePicker({multiple:true,types:[{description:'Audio',accept:{'audio/*':['.mp3','.m4a','.wav','.flac','.ogg','.aac']}}]});
-        const files=[]; for(const h of handles){const f=await h.getFile(); files.push({name:f.name,path:URL.createObjectURL(f),file:f,handle:h});}
-        return files;
-      }else{ return new Promise(res=>{const i=document.createElement('input');i.type='file';i.multiple=true;i.accept='audio/*';i.onchange=()=>res(Array.from(i.files).map(f=>({name:f.name,path:URL.createObjectURL(f),file:f})));i.click();}); }
-    }
-    async function pickDirectoryFilesOrFallback(accept='audio/*'){
-      const test=document.createElement('input'); if('webkitdirectory' in test){
-        return new Promise(res=>{const i=document.createElement('input');i.type='file';i.multiple=true;i.accept=accept;i.webkitdirectory=true;i.onchange=()=>res(Array.from(i.files).map(f=>({name:f.name,path:URL.createObjectURL(f),file:f})));i.click();});
-      } else { return await pickMultipleFiles(); }
-    }
-    async function importZipToPlaylist(zipFile){
-      try{
-        const buf=await zipFile.arrayBuffer(); const zip=await JSZip.loadAsync(buf); const entries=[];
-        zip.forEach((p,e)=>{ if(!e.dir && isAudioExt(e.name)) entries.push(e); });
-        if(!entries.length){ showMessage('ZIP 中未发现音频','error'); return; }
-        const added=[];
-        for(const e of entries){ const blob=await e.async('blob'); const name=e.name.split('/').pop(); added.push({name,path:URL.createObjectURL(blob),file:new File([blob],name,{type:blob.type})}); }
-        audioFiles.push(...added); sortPlaylist(); renderPlaylist(); savePersistentPlaylist(); showMessage(`已从 ZIP 导入 ${added.length} 个文件`,'success');
-        if(!currentAudioFile) playAudio(audioFiles[0],0);
-      }catch(e){console.error(e); showMessage('ZIP 导入失败','error');}
-    }
-
-    document.getElementById('addByPickerButton').addEventListener('click',async()=>{
-      const files=await pickMultipleFiles(); if(!files.length) return;
-      audioFiles.push(...files); sortPlaylist(); renderPlaylist(); savePersistentPlaylist(); showMessage(`添加 ${files.length} 个文件`,'success'); if(!currentAudioFile) playAudio(audioFiles[0],0);
-    });
-    document.getElementById('addFolderButton').addEventListener('click',async()=>{
-      const files=await pickDirectoryFilesOrFallback('audio/*'); if(!files.length) return;
-      audioFiles.push(...files); sortPlaylist(); renderPlaylist(); savePersistentPlaylist(); showMessage(`添加 ${files.length} 个文件`,'success'); if(!currentAudioFile) playAudio(audioFiles[0],0);
-    });
-    document.getElementById('importZipButton').addEventListener('click',()=>{
-      const i=document.createElement('input'); i.type='file'; i.accept='.zip,application/zip'; i.onchange=()=>{ if(i.files[0]) importZipToPlaylist(i.files[0]); }; i.click();
-    });
-
-    // —— 播放器/WaveSurfer ——
+    // —— WaveSurfer ——
     function initWaveSurfer(){
       wavesurfer=WaveSurfer.create({container:'#waveform',waveColor:'#4a6fa5',progressColor:'#2c3e50',cursorColor:'#e74c3c',barWidth:2,barGap:1,height:100,normalize:true});
       wavesurfer.on('ready',()=>{
@@ -298,7 +220,6 @@
       });
       wavesurfer.on('audioprocess',()=>{
         const t=wavesurfer.getCurrentTime(); document.getElementById('currentTime').textContent=formatTime(t);
-        if(isLooping){ const e=parseFloat(document.getElementById('loopEnd').value); if(t>=e){ const max=parseInt(document.getElementById('loopCount').value); if(max===0||loopCounter<max){ const s=parseFloat(document.getElementById('loopStart').value); wavesurfer.seekTo(s/wavesurfer.getDuration()); if(max>0) loopCounter++; } else { isLooping=false; if(loopRegion) loopRegion.style.background='rgba(74,111,165,.1)'; } } }
       });
     }
     initWaveSurfer();
@@ -306,88 +227,121 @@
     function formatTime(s){const m=Math.floor(s/60),ss=Math.floor(s%60);return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;}
 
     function playAudio(file,index){
-      const player=document.getElementById('currentPlayer'); player.style.display='block';
+      document.getElementById('currentPlayer').style.display='block';
       currentAudioFile=file; currentAudioFile.index=index;
       document.getElementById('currentTitle').textContent='当前播放：'+file.name;
       document.getElementById('liteTitleDisplay').textContent=file.name;
-
+      selectedIndex=index; renderPlaylist();
       wavesurfer.load(file.path);
-      // 高亮当前项
-      document.querySelectorAll('.playlist-item').forEach(el=>el.classList.remove('active'));
-      const cur=document.querySelector(`.playlist-item[data-index="${index}"]`); if(cur) cur.classList.add('active');
+      setTimeout(()=>{ if(!wavesurfer.isPlaying()) wavesurfer.play();
+        document.getElementById('fullPlayPauseButton').textContent='⏸️';
+        document.getElementById('litePlayPauseButton').textContent='⏸️';
+      },60);
     }
 
-    // 圆形主控按钮事件（完整模式）
-    document.getElementById('fullPlayPauseButton').addEventListener('click',()=>{
-      if(wavesurfer.isPlaying()){ wavesurfer.pause(); document.getElementById('fullPlayPauseButton').textContent='▶️'; document.getElementById('litePlayPauseButton').textContent='▶️'; }
-      else { wavesurfer.play();  document.getElementById('fullPlayPauseButton').textContent='⏸️'; document.getElementById('litePlayPauseButton').textContent='⏸️'; }
+    // —— 顶部添加文件：使用 label 触发，无需 JS（兼容 WebView）
+    document.getElementById('audioFiles').addEventListener('change',e=>{
+      const files=Array.from(e.target.files).filter(f=>f.type.startsWith('audio/')||isAudioExt(f.name)).map(f=>({name:f.name,path:URL.createObjectURL(f),file:f}));
+      if(!files.length) return;
+      audioFiles.push(...files); sortPlaylist(); renderPlaylist(); showMessage(`已添加 ${files.length} 个文件`,'success');
+      if(selectedIndex<0) setSelected(0);
+      if(!currentAudioFile) playAudio(audioFiles[0],0);
+      e.target.value='';
     });
-    document.getElementById('fullRewButton').addEventListener('click',()=>{ const t=wavesurfer.getCurrentTime(); wavesurfer.seekTo(Math.max(0,t-5)/wavesurfer.getDuration()); });
-    document.getElementById('fullFwdButton').addEventListener('click',()=>{ const t=wavesurfer.getCurrentTime(); wavesurfer.seekTo(Math.min(wavesurfer.getDuration(),t+5)/wavesurfer.getDuration()); });
-    document.getElementById('fullPrevButton').addEventListener('click',()=>navTrack(-1));
-    document.getElementById('fullNextButton').addEventListener('click',()=>navTrack(1));
 
+    // 拖放
+    const drop=document.getElementById('dropArea');
+    ['dragenter','dragover','dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();}));
+    ['dragenter','dragover'].forEach(()=>drop.classList.add('drag-over'));
+    ['dragleave','drop'].forEach(()=>drop.classList.remove('drag-over'));
+    drop.addEventListener('drop',e=>{
+      const files=Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('audio/')||isAudioExt(f.name)).map(f=>({name:f.name,path:URL.createObjectURL(f),file:f}));
+      if(!files.length) return;
+      audioFiles.push(...files); sortPlaylist(); renderPlaylist(); showMessage(`拖入 ${files.length} 个文件`,'success');
+      if(selectedIndex<0) setSelected(0);
+      if(!currentAudioFile) playAudio(audioFiles[0],0);
+    });
+
+    // 其他添加方式（保留）
+    async function pickMultipleFiles(){
+      if(hasFS){
+        const handles=await window.showOpenFilePicker({multiple:true,types:[{description:'Audio',accept:{'audio/*':['.mp3','.m4a','.wav','.flac','.ogg','.aac']}}]});
+        const out=[]; for(const h of handles){const f=await h.getFile(); out.push({name:f.name,path:URL.createObjectURL(f),file:f,handle:h});}
+        return out;
+      }else{
+        return new Promise(res=>{const i=document.createElement('input');i.type='file';i.multiple=true;i.accept='audio/*';i.onchange=()=>res(Array.from(i.files).map(f=>({name:f.name,path:URL.createObjectURL(f),file:f})));i.click();});
+      }
+    }
+    async function pickDirectoryFilesOrFallback(accept='audio/*'){
+      const t=document.createElement('input'); if('webkitdirectory' in t){
+        return new Promise(res=>{const i=document.createElement('input');i.type='file';i.multiple=true;i.accept=accept;i.webkitdirectory=true;i.onchange=()=>res(Array.from(i.files).map(f=>({name:f.name,path:URL.createObjectURL(f),file:f})));i.click();});
+      } else { return await pickMultipleFiles(); }
+    }
+    document.getElementById('addByPickerButton').addEventListener('click',async()=>{
+      const files=await pickMultipleFiles(); if(!files.length) return;
+      audioFiles.push(...files); sortPlaylist(); renderPlaylist(); showMessage(`添加 ${files.length} 个文件`,'success');
+      if(selectedIndex<0) setSelected(0);
+      if(!currentAudioFile) playAudio(audioFiles[0],0);
+    });
+    document.getElementById('addFolderButton').addEventListener('click',async()=>{
+      const files=await pickDirectoryFilesOrFallback('audio/*'); if(!files.length) return;
+      audioFiles.push(...files); sortPlaylist(); renderPlaylist(); showMessage(`添加 ${files.length} 个文件`,'success');
+      if(selectedIndex<0) setSelected(0);
+      if(!currentAudioFile) playAudio(audioFiles[0],0);
+    });
+    document.getElementById('importZipButton').addEventListener('click',()=>{
+      const i=document.createElement('input');i.type='file';i.accept='.zip,application/zip';i.onchange=async()=>{if(i.files[0]){const buf=await i.files[0].arrayBuffer();const zip=await JSZip.loadAsync(buf);const entries=[];zip.forEach((p,e)=>{if(!e.dir&&['.mp3','.wav','.ogg','.m4a','.flac','.aac'].some(x=>e.name.toLowerCase().endsWith(x))) entries.push(e);});if(!entries.length){showMessage('ZIP 中未发现音频','error');return;}const added=[];for(const e of entries){const blob=await e.async('blob');const name=e.name.split('/').pop();added.push({name,path:URL.createObjectURL(blob),file:new File([blob],name,{type:blob.type})});}audioFiles.push(...added);sortPlaylist();renderPlaylist();showMessage(`已导入 ${added.length} 个文件`,'success');if(selectedIndex<0) setSelected(0);if(!currentAudioFile) playAudio(audioFiles[0],0);}};i.click();
+    });
+
+    // 键盘导航
+    const playlistBox=document.getElementById('playlistBox');
+    playlistBox.addEventListener('keydown',e=>{
+      if(!audioFiles.length) return;
+      if(e.key==='ArrowDown'){setSelected(selectedIndex<0?0:selectedIndex+1);e.preventDefault();}
+      else if(e.key==='ArrowUp'){setSelected(selectedIndex<0?0:selectedIndex-1);e.preventDefault();}
+      else if(e.key==='Home'){setSelected(0);e.preventDefault();}
+      else if(e.key==='End'){setSelected(audioFiles.length-1);e.preventDefault();}
+      else if(e.key==='Enter'){if(selectedIndex>=0) playAudio(audioFiles[selectedIndex],selectedIndex);}
+    });
+
+    // 主控按钮 + 切换简洁模式
     function navTrack(step){
-      if(!audioFiles.length||currentAudioFile==null) return;
-      // 保证按文件名排序
+      if(!audioFiles.length||!currentAudioFile) return;
       sortPlaylist();
       let i=currentAudioFile.index ?? audioFiles.findIndex(f=>f.name===currentAudioFile.name);
-      if(i<0) i=0;
-      let n=i+step; if(n<0) n=audioFiles.length-1; if(n>=audioFiles.length) n=0;
+      if(i<0) i=0; let n=i+step; if(n<0) n=audioFiles.length-1; if(n>=audioFiles.length) n=0;
       playAudio(audioFiles[n],n);
     }
-
-    // 速度同步（完整/简洁）
-    document.getElementById('playbackSpeed').addEventListener('change',function(){ const s=parseFloat(this.value); wavesurfer.setPlaybackRate(s); document.getElementById('litePlaybackSpeed').value=this.value; });
-    document.getElementById('litePlaybackSpeed').addEventListener('change',function(){ const s=parseFloat(this.value); wavesurfer.setPlaybackRate(s); document.getElementById('playbackSpeed').value=this.value; });
-
-    // 简洁模式
-    const lite=document.getElementById('liteModeContainer');
-    document.getElementById('liteToggleBtn').addEventListener('click',()=>{ lite.style.display='none'; });
+    document.getElementById('fullPrevButton').addEventListener('click',()=>navTrack(-1));
+    document.getElementById('fullNextButton').addEventListener('click',()=>navTrack(1));
+    document.getElementById('fullRewButton').addEventListener('click',()=>{const t=wavesurfer.getCurrentTime();wavesurfer.seekTo(Math.max(0,t-5)/wavesurfer.getDuration());});
+    document.getElementById('fullFwdButton').addEventListener('click',()=>{const t=wavesurfer.getCurrentTime();wavesurfer.seekTo(Math.min(wavesurfer.getDuration(),t+5)/wavesurfer.getDuration());});
+    document.getElementById('fullPlayPauseButton').addEventListener('click',()=>{
+      if(wavesurfer.isPlaying()){wavesurfer.pause();document.getElementById('fullPlayPauseButton').textContent='▶️';document.getElementById('litePlayPauseButton').textContent='▶️';}
+      else{wavesurfer.play();document.getElementById('fullPlayPauseButton').textContent='⏸️';document.getElementById('litePlayPauseButton').textContent='⏸️';}
+    });
+    document.getElementById('toggleModeBtn').addEventListener('click',()=>{document.getElementById('liteModeContainer').style.display='flex';});
+    document.getElementById('liteToggleBtn').addEventListener('click',()=>{document.getElementById('liteModeContainer').style.display='none';});
     document.getElementById('litePlayPauseButton').addEventListener('click',()=>document.getElementById('fullPlayPauseButton').click());
     document.getElementById('liteRewindButton').addEventListener('click',()=>document.getElementById('fullRewButton').click());
     document.getElementById('liteForwardButton').addEventListener('click',()=>document.getElementById('fullFwdButton').click());
     document.getElementById('litePrevButton').addEventListener('click',()=>navTrack(-1));
     document.getElementById('liteNextButton').addEventListener('click',()=>navTrack(1));
+    document.getElementById('playbackSpeed').addEventListener('change',function(){const s=parseFloat(this.value);wavesurfer.setPlaybackRate(s);document.getElementById('litePlaybackSpeed').value=this.value;});
+    document.getElementById('litePlaybackSpeed').addEventListener('change',function(){const s=parseFloat(this.value);wavesurfer.setPlaybackRate(s);document.getElementById('playbackSpeed').value=this.value;});
 
-    // 清空列表
+    // 清空列表（在列表下方）
     document.getElementById('clearPlaylistBtn').addEventListener('click',()=>{
       if(!audioFiles.length) return;
       if(confirm('确定清空播放列表吗？')){
         audioFiles.forEach(f=>{try{URL.revokeObjectURL(f.path);}catch(_){}});
-        audioFiles=[]; renderPlaylist(); savePersistentPlaylist();
-        document.getElementById('currentPlayer').style.display='none';
-        currentAudioFile=null;
+        audioFiles=[]; renderPlaylist(); document.getElementById('currentPlayer').style.display='none'; currentAudioFile=null; selectedIndex=-1;
+        localStorage.removeItem('audioPlaylistManifest');
         showMessage('已清空列表','success');
       }
     });
 
-    // 自动恢复（简化：仅清单/句柄逻辑）
-    (async function autoRestore(){
-      try{
-        const saved=await idbGet('handles');
-        if(hasFS && saved && saved.length){
-          const rebuilt=[];
-          for(const it of saved){ const h=it.handle; if(h && (await h.queryPermission?.({mode:'read'}))!=='granted'){ const r=await h.requestPermission?.({mode:'read'}); if(r!=='granted') throw 0; } const f=await h.getFile(); rebuilt.push({name:f.name,path:URL.createObjectURL(f),file:f,handle:h}); }
-          if(rebuilt.length){ audioFiles=rebuilt; sortPlaylist(); renderPlaylist(); showMessage('已自动恢复上次播放列表 ✅','success'); return; }
-        }
-        const manifest=localStorage.getItem('audioPlaylistManifest'); if(manifest){ showMessage('找到上次清单，可用“一键恢复上次列表”进行匹配','success'); }
-      }catch(e){}
-    })();
-
-    // 一键恢复（清单匹配）
-    document.getElementById('restoreButton').addEventListener('click',async()=>{
-      try{
-        const manifestStr=localStorage.getItem('audioPlaylistManifest'); if(!manifestStr){showMessage('没有可恢复的清单','error');return;}
-        const manifest=JSON.parse(manifestStr); const picked=await pickDirectoryFilesOrFallback('audio/*');
-        const map=new Map(picked.map(p=>[(p.name+'::'+(p.file?.size||0)),p]));
-        const matched=[]; for(const m of manifest){ const key=m.name+'::'+(m.size||0); matched.push(map.get(key)||picked.find(p=>p.name===m.name)); }
-        const final=matched.filter(Boolean); if(!final.length){showMessage('未匹配到文件','error');return;}
-        audioFiles=final; sortPlaylist(); renderPlaylist(); savePersistentPlaylist(); showMessage(`已恢复 ${final.length} 个文件 ✅`,'success'); playAudio(audioFiles[0],0);
-      }catch(e){console.error(e); showMessage('恢复失败','error');}
-    });
-
-    // 初始化播放列表 UI
+    // 初始化
     renderPlaylist();
   </script>
 </body>
