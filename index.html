@@ -1,87 +1,82 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>猫jio Player</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/wavesurfer.js/6.6.3/wavesurfer.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <style>
-    body{font-family:'Arial',sans-serif;max-width:800px;margin:0 auto;padding:20px;background:#f8f9fa;}
-    h1{color:#333;text-align:center;margin:0 0 16px;}
-    .container{background:#fff;border-radius:12px;padding:20px;box-shadow:0 5px 15px rgba(0,0,0,.1);}
-    .local-file-section{margin-bottom:20px;padding-bottom:16px;border-bottom:2px dotted #eee;}
-    .tip-box{background:#fff8dc;border:1px solid #f0e68c;border-radius:6px;padding:10px 12px;margin-bottom:12px;color:#8b4513;font-size:14px;}
-    .message-box{display:none;margin:8px 0;padding:8px 10px;border-radius:6px;font-size:14px;text-align:center}
-    .success-message{display:block;background:#d4edda;color:#155724;border:1px solid #c3e6cb}
-    .error-message{display:block;background:#f8d7da;color:#721c24;border:1px solid #f5c6cb}
-    .add-button{background:#27ae60;color:#fff;border:none;border-radius:6px;padding:10px 14px;font-weight:700;cursor:pointer;display:inline-block}
-    .small-button{font-size:14px;padding:6px 10px;border-radius:4px;background:#27ae60;color:#fff;border:none;cursor:pointer}
-    .inline-buttons{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-    /* 文件输入隐藏但可被 label 触发（兼容 WebView） */
-    #audioFiles{position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0}
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>猫jio Player</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/wavesurfer.js/6.6.3/wavesurfer.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;max-width:800px;margin:0 auto;padding:20px;background:#f8f9fa}
+  h1{margin:0 0 16px;text-align:center;color:#333}
+  .container{background:#fff;border-radius:12px;padding:20px;box-shadow:0 5px 15px rgba(0,0,0,.1)}
+  .local-file-section{margin-bottom:20px;padding-bottom:16px;border-bottom:2px dotted #eee}
+  .tip-box{background:#fff8dc;border:1px solid #f0e68c;border-radius:6px;padding:10px 12px;margin-bottom:12px;color:#8b4513;font-size:14px}
+  .message-box{display:none;margin:8px 0;padding:8px 10px;border-radius:6px;text-align:center;font-size:14px}
+  .success-message{display:block;background:#d4edda;color:#155724;border:1px solid #c3e6cb}
+  .error-message{display:block;background:#f8d7da;color:#721c24;border:1px solid #f5c6cb}
+  .add-button{background:#27ae60;color:#fff;border:none;border-radius:6px;padding:10px 14px;font-weight:700;cursor:pointer;display:inline-block}
+  .small-button{font-size:14px;padding:6px 10px;border-radius:4px;background:#27ae60;color:#fff;border:none;cursor:pointer}
+  .inline-buttons{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  #audioFiles{position:absolute;left:-9999px;top:-9999px;opacity:0;width:1px;height:1px}
 
-    /* 播放列表：单个列表框 */
-    .playlist-box{border:1px solid #e1e4e8;border-radius:10px;padding:8px;max-height:300px;overflow:auto;background:#fafafa;margin-top:12px}
-    .playlist-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;cursor:pointer;font-weight:500;color:#444}
-    .playlist-item:hover{background:#eef6ff}
-    .playlist-item.active{background:#e3f2fd;border:1px solid #2196f3}
-    .playlist-item.selected{outline:2px solid #a3c5ff;background:#f0f8ff}
-    .playlist-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .playlist-actions{display:flex;justify-content:flex-end;margin-top:8px}
-    .icon-only{background:#e74c3c;color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer}
-    .icon-only:hover{background:#c0392b}
+  .playlist-box{border:1px solid #e1e4e8;border-radius:10px;padding:8px;max-height:300px;overflow:auto;background:#fafafa;margin-top:12px}
+  .playlist-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;cursor:pointer;font-weight:500;color:#444}
+  .playlist-item:hover{background:#eef6ff}
+  .playlist-item.active{background:#e3f2fd;border:1px solid #2196f3}
+  .playlist-item.selected{outline:2px solid #a3c5ff;background:#f0f8ff}
+  .playlist-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .playlist-actions{display:flex;justify-content:flex-end;margin:8px 2px 0}
+  /* 垃圾桶透明 */
+  .icon-only{background:transparent;color:#6b7280;border:none;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .icon-only:hover{background:#f1f5f9}
 
-    /* 正在播放指示点 */
-    .np{width:10px;height:10px;border-radius:50%;background:#4a6fa5;opacity:0;flex:0 0 auto}
-    .playlist-item.active .np{opacity:1;animation:pulse 1.2s infinite ease-in-out}
-    @keyframes pulse{0%{transform:scale(.9);opacity:.6}50%{transform:scale(1.2);opacity:1}100%{transform:scale(.9);opacity:.6}}
+  .np{width:10px;height:10px;border-radius:50%;background:#4a6fa5;opacity:0;flex:0 0 auto}
+  .playlist-item.active .np{opacity:1;animation:pulse 1.2s infinite ease-in-out}
+  @keyframes pulse{0%{transform:scale(.9);opacity:.6}50%{transform:scale(1.2);opacity:1}100%{transform:scale(.9);opacity:.6}}
 
-    /* 播放器 */
-    .current-player{margin-top:18px;border:1px solid #e1e4e8;border-radius:10px;padding:16px;background:#fff;box-shadow:0 3px 10px rgba(0,0,0,.05);position:relative}
-    .current-title{font-weight:700;color:#2c3e50;margin-bottom:10px}
-    .waveform-container{margin-top:8px;border:1px solid #e1e4e8;border-radius:8px;padding:12px;background:#f9f9f9}
-    #waveform{height:100px}
-    .time-display{font-family:monospace;text-align:center;margin:8px 0;color:#666}
-    /* 主控按钮：与简洁模式一致的圆形小按钮（包含切换按钮） */
-    .round-row{display:flex;justify-content:center;gap:8px;margin-top:6px;flex-wrap:wrap}
-    .round-btn{background:#4a6fa5;color:#fff;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:none;cursor:pointer}
-    .round-btn:hover{background:#2c3e50}
+  .current-player{margin-top:18px;border:1px solid #e1e4e8;border-radius:10px;padding:16px;background:#fff;box-shadow:0 3px 10px rgba(0,0,0,.05)}
+  .current-title{font-weight:700;color:#2c3e50;margin-bottom:10px}
+  .waveform-container{margin-top:8px;border:1px solid #e1e4e8;border-radius:8px;padding:12px;background:#f9f9f9}
+  #waveform{height:100px}
+  .time-display{font-family:monospace;text-align:center;margin:8px 0;color:#666}
 
-    .speed-control{display:flex;align-items:center;margin-top:12px;background:#f8f9fa;padding:8px;border-radius:8px;border:1px solid #e1e4e8;font-size:14px}
-    .speed-control label{margin-right:10px;font-weight:600}
-    .speed-control select{padding:6px;border-radius:4px;border:1px solid #ddd}
-    .loop-section{margin-top:12px;background:#f0f7ff;padding:12px;border-radius:8px;border:1px dashed #4a6fa5}
-    .loop-header{font-weight:700;margin-bottom:8px}
-    .loop-times{display:flex;gap:10px;margin-top:8px}
-    .loop-input{width:80px;padding:5px;border-radius:4px;border:1px solid #ddd}
-    .region-loop{background:rgba(74,111,165,.2);position:absolute;top:0;height:100%;pointer-events:none}
+  .round-row{display:flex;justify-content:center;gap:8px;margin-top:6px;flex-wrap:wrap}
+  .round-btn{background:#4a6fa5;color:#fff;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:none;cursor:pointer}
+  .round-btn:hover{background:#2c3e50}
 
-    /* 简洁模式 */
-    .lite-mode-container{position:fixed;inset:0;background:#f8f9fa;z-index:1000;display:none;justify-content:center;align-items:center}
-    .lite-player{width:280px;max-width:92vw;padding:8px;border-radius:10px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.1)}
-    .lite-toolbar{display:flex;justify-content:flex-end;gap:6px}
-    .lite-toggle{background:#4a6fa5;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;border:none}
-    .lite-speed select{font-size:11px;padding:2px 6px}
-    .progress-container{width:100%;height:6px;background:#e1e4e8;border-radius:4px;margin:6px 0;overflow:hidden}
-    .progress-bar{height:100%;width:0;background:#4a6fa5}
-    .lite-controls{display:flex;justify-content:center;gap:6px}
-    .lite-control-button{background:#4a6fa5;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:none}
-    .lite-control-button:hover{background:#2c3e50}
+  .speed-control{display:flex;align-items:center;margin-top:12px;background:#f8f9fa;padding:8px;border-radius:8px;border:1px solid #e1e4e8;font-size:14px}
+  .speed-control label{margin-right:10px;font-weight:600}
+  .speed-control select{padding:6px;border-radius:4px;border:1px solid #ddd}
+  .loop-section{margin-top:12px;background:#f0f7ff;padding:12px;border-radius:8px;border:1px dashed #4a6fa5}
+  .loop-header{font-weight:700;margin-bottom:8px}
+  .loop-times{display:flex;gap:10px;margin-top:8px}
+  .loop-input{width:80px;padding:5px;border-radius:4px;border:1px solid #ddd}
 
-    .drop-area{border:2px dashed #4a6fa5;border-radius:8px;padding:18px;text-align:center;background:#f0f7ff;margin-bottom:12px}
-    .drop-area.drag-over{background:#e3f2fd;border-color:#2196f3;}
-  </style>
+  .lite-mode-container{position:fixed;inset:0;background:#f8f9fa;z-index:1000;display:none;justify-content:center;align-items:center}
+  .lite-player{width:280px;max-width:92vw;padding:8px;border-radius:10px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+  .lite-toolbar{display:flex;justify-content:flex-end;gap:6px}
+  .lite-toggle{background:#4a6fa5;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;border:none}
+  .lite-speed select{font-size:11px;padding:2px 6px}
+  .progress-container{width:100%;height:6px;background:#e1e4e8;border-radius:4px;margin:6px 0;overflow:hidden}
+  .progress-bar{height:100%;width:0;background:#4a6fa5}
+  .lite-controls{display:flex;justify-content:center;gap:6px}
+  .lite-control-button{background:#4a6fa5;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:none}
+  .lite-control-button:hover{background:#2c3e50}
+
+  .drop-area{border:2px dashed #4a6fa5;border-radius:8px;padding:18px;text-align:center;background:#f0f7ff;margin-bottom:12px}
+  .drop-area.drag-over{background:#e3f2fd;border-color:#2196f3}
+</style>
 </head>
 <body>
   <div class="container">
     <h1>猫jio Player</h1>
 
     <div class="local-file-section">
-      <div class="tip-box">使用浏览器 File API 直接播放本地文件（不上传）。关闭页面后支持自动/一键恢复。部分 App 内浏览器禁止脚本触发文件选择，因此下面的“添加文件”采用原生触发，确保可用。</div>
+      <div class="tip-box">内置浏览器可能拦截脚本触发文件选择，本页使用原生 label 触发，确保可用。</div>
       <div id="message" class="message-box"></div>
 
-      <!-- 顶部：添加文件（用 label 触发 input，兼容 WebView） -->
+      <!-- 顶部“添加文件”（label 触发，兼容 WebView） -->
       <div class="inline-buttons" style="margin-bottom:10px">
         <label for="audioFiles" id="addFilesLabel" class="add-button">添加文件</label>
         <input type="file" id="audioFiles" accept=".mp3,.wav,.ogg,.m4a,.flac" multiple>
@@ -89,7 +84,7 @@
 
       <div id="dropArea" class="drop-area">拖放音频文件到这里</div>
 
-      <!-- 其他添加方式放下面 -->
+      <!-- 其他添加方式 -->
       <div class="inline-buttons">
         <button id="addByPickerButton" class="small-button">系统文件选择器（可恢复）</button>
         <button id="restoreButton" class="small-button">一键恢复上次列表</button>
@@ -101,7 +96,6 @@
     <div class="player-section">
       <h2 style="margin:10px 0">我的音频库</h2>
       <div id="playlistBox" class="playlist-box" tabindex="0" aria-label="播放列表（↑↓选择，Enter播放）"></div>
-      <!-- 垃圾桶移动到列表框下方 -->
       <div class="playlist-actions">
         <button id="clearPlaylistBtn" class="icon-only" title="清空列表">🗑️</button>
       </div>
@@ -112,7 +106,7 @@
         <div class="waveform-container"><div id="waveform"></div></div>
         <div class="time-display"><span id="currentTime">00:00</span> / <span id="totalTime">00:00</span></div>
 
-        <!-- 主控按钮一排：加入“切换简洁版”🔄 -->
+        <!-- 主控按钮（含切换简洁版） -->
         <div class="round-row">
           <button id="fullPrevButton" class="round-btn" title="上一首">⏮️</button>
           <button id="fullRewButton" class="round-btn" title="后退5秒">⏪</button>
@@ -180,169 +174,216 @@
     </div>
   </div>
 
-  <script>
-    let wavesurfer=null,isLooping=false,loopCounter=0,loopRegion=null;
-    let audioFiles=[],currentAudioFile=null,isLiteMode=false;
-    let selectedIndex=-1;
+<script>
+  let wavesurfer=null,isLooping=false,loopCounter=0,loopRegion=null;
+  let audioFiles=[],currentAudioFile=null,isLiteMode=false,selectedIndex=-1;
+  let shouldAutoPlay=false; // 需要自动播放的标记（在用户手势后设置）
 
-    const hasFS='showOpenFilePicker' in window;
+  const hasFS='showOpenFilePicker' in window;
 
-    function showMessage(t,type){const m=document.getElementById('message');m.textContent=t;m.className='message-box '+(type==='error'?'error-message':'success-message');}
+  function showMessage(t,type){const m=document.getElementById('message');m.textContent=t;m.className='message-box '+(type==='error'?'error-message':'success-message');}
 
-    function isAudioExt(n){return['.mp3','.wav','.ogg','.m4a','.flac','.aac'].some(x=>n.toLowerCase().endsWith(x));}
-    function sortPlaylist(){audioFiles.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));}
-    function renderPlaylist(){
-      const box=document.getElementById('playlistBox'); box.innerHTML='';
-      if(!audioFiles.length){box.innerHTML='<div class="playlist-item" style="justify-content:center;color:#888">没有音频文件，请添加</div>';return;}
-      audioFiles.forEach((f,i)=>{
-        const li=document.createElement('div'); li.className='playlist-item'; li.dataset.index=i;
-        const dot=document.createElement('div'); dot.className='np';
-        const name=document.createElement('span'); name.className='playlist-name'; name.textContent=f.name;
-        li.appendChild(dot); li.appendChild(name);
-        if(currentAudioFile && currentAudioFile.name===f.name) li.classList.add('active');
-        if(i===selectedIndex) li.classList.add('selected');
-        li.addEventListener('click',()=>playAudio(f,i));
-        box.appendChild(li);
+  function isAudioExt(n){return['.mp3','.wav','.ogg','.m4a','.flac','.aac'].some(x=>n.toLowerCase().endsWith(x));}
+  function sortPlaylist(){audioFiles.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));}
+
+  function renderPlaylist(){
+    const box=document.getElementById('playlistBox'); box.innerHTML='';
+    if(!audioFiles.length){box.innerHTML='<div class="playlist-item" style="justify-content:center;color:#888">没有音频文件，请添加</div>';return;}
+    audioFiles.forEach((f,i)=>{
+      const li=document.createElement('div'); li.className='playlist-item'; li.dataset.index=i;
+      const dot=document.createElement('div'); dot.className='np';
+      const name=document.createElement('span'); name.className='playlist-name'; name.textContent=f.name;
+      li.appendChild(dot); li.appendChild(name);
+      if(currentAudioFile && currentAudioFile.name===f.name) li.classList.add('active');
+      if(i===selectedIndex) li.classList.add('selected');
+      li.addEventListener('click', async ()=>{
+        await ensureAudioReady();            // ← 保证有声音
+        playAudio(f,i,true);                 // true 表示来自用户手势
       });
-    }
-    function setSelected(i){
-      if(!audioFiles.length){selectedIndex=-1;return;}
-      selectedIndex=Math.max(0,Math.min(audioFiles.length-1,i)); renderPlaylist();
-      const el=document.querySelector(`.playlist-item[data-index="${selectedIndex}"]`); if(el) el.scrollIntoView({block:'nearest'});
-    }
+      box.appendChild(li);
+    });
+  }
+  function setSelected(i){
+    if(!audioFiles.length){selectedIndex=-1;return;}
+    selectedIndex=Math.max(0,Math.min(audioFiles.length-1,i)); renderPlaylist();
+    const el=document.querySelector(`.playlist-item[data-index="${selectedIndex}"]`); if(el) el.scrollIntoView({block:'nearest'});
+  }
 
-    // —— WaveSurfer ——
-    function initWaveSurfer(){
-      wavesurfer=WaveSurfer.create({container:'#waveform',waveColor:'#4a6fa5',progressColor:'#2c3e50',cursorColor:'#e74c3c',barWidth:2,barGap:1,height:100,normalize:true});
-      wavesurfer.on('ready',()=>{
-        document.getElementById('totalTime').textContent=formatTime(wavesurfer.getDuration());
-        document.getElementById('loopEnd').value=wavesurfer.getDuration().toFixed(1);
-      });
-      wavesurfer.on('audioprocess',()=>{
-        const t=wavesurfer.getCurrentTime(); document.getElementById('currentTime').textContent=formatTime(t);
-      });
+  // —— AudioContext 保证运行（避免“波形动但没声”）——
+  async function ensureAudioReady(){
+    try{
+      const ac = wavesurfer?.getAudioContext?.();
+      if(ac && ac.state !== 'running'){ await ac.resume(); }
+    }catch(e){}
+  }
+
+  // —— WaveSurfer 初始化 —— 
+  function initWaveSurfer(){
+    wavesurfer=WaveSurfer.create({
+      container:'#waveform',waveColor:'#4a6fa5',progressColor:'#2c3e50',cursorColor:'#e74c3c',
+      barWidth:2,barGap:1,height:100,normalize:true
+    });
+
+    wavesurfer.on('ready',()=>{
+      const dur=wavesurfer.getDuration();
+      document.getElementById('totalTime').textContent=formatTime(dur);
+      document.getElementById('liteTotalTime').textContent=formatTime(dur);
+      document.getElementById('loopEnd').value=dur.toFixed(1);
+      updateLiteProgress(0,dur);
+      if(shouldAutoPlay){ wavesurfer.play(); shouldAutoPlay=false; syncPlayIcons(true); }
+    });
+
+    wavesurfer.on('audioprocess',()=>{
+      const t=wavesurfer.getCurrentTime(), d=wavesurfer.getDuration();
+      document.getElementById('currentTime').textContent = formatTime(t);
+      updateLiteProgress(t,d);
+    });
+    wavesurfer.on('seek',()=>{ const t=wavesurfer.getCurrentTime(), d=wavesurfer.getDuration(); updateLiteProgress(t,d); });
+    wavesurfer.on('play',()=>syncPlayIcons(true));
+    wavesurfer.on('pause',()=>syncPlayIcons(false));
+    wavesurfer.on('finish',()=>syncPlayIcons(false));
+  }
+  initWaveSurfer();
+
+  function syncPlayIcons(playing){
+    document.getElementById('fullPlayPauseButton').textContent = playing ? '⏸️':'▶️';
+    document.getElementById('litePlayPauseButton').textContent = playing ? '⏸️':'▶️';
+  }
+
+  function updateLiteProgress(current,duration){
+    const pct = duration ? (current/duration)*100 : 0;
+    document.getElementById('progressBar').style.width = (pct||0)+'%';
+    document.getElementById('liteCurrentTime').textContent = formatTime(current||0);
+  }
+
+  function formatTime(s){const m=Math.floor(s/60),ss=Math.floor(s%60);return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;}
+
+  function playAudio(file,index,byUser=false){
+    document.getElementById('currentPlayer').style.display='block';
+    currentAudioFile=file; currentAudioFile.index=index;
+    document.getElementById('currentTitle').textContent='当前播放：'+file.name;
+    document.getElementById('liteTitleDisplay').textContent=file.name;
+    selectedIndex=index; renderPlaylist();
+    shouldAutoPlay = !!byUser;     // 只有用户手势触发时自动播，防止浏览器阻止
+    wavesurfer.load(file.path);
+  }
+
+  // 顶部添加文件
+  document.getElementById('audioFiles').addEventListener('change',e=>{
+    const files=Array.from(e.target.files).filter(f=>f.type.startsWith('audio/')||isAudioExt(f.name)).map(f=>({name:f.name,path:URL.createObjectURL(f),file:f}));
+    if(!files.length) return;
+    audioFiles.push(...files); sortPlaylist(); renderPlaylist(); showMessage(`已添加 ${files.length} 个文件`,'success');
+    if(selectedIndex<0) setSelected(0);
+    if(!currentAudioFile) playAudio(audioFiles[0],0,true);
+    e.target.value='';
+  });
+
+  // 拖放
+  const drop=document.getElementById('dropArea');
+  ['dragenter','dragover','dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();}));
+  ['dragenter','dragover'].forEach(()=>drop.classList.add('drag-over'));
+  ['dragleave','drop'].forEach(()=>drop.classList.remove('drag-over'));
+  drop.addEventListener('drop',async e=>{
+    const files=Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('audio/')||isAudioExt(f.name)).map(f=>({name:f.name,path:URL.createObjectURL(f),file:f}));
+    if(!files.length) return;
+    audioFiles.push(...files); sortPlaylist(); renderPlaylist(); showMessage(`拖入 ${files.length} 个文件`,'success');
+    if(selectedIndex<0) setSelected(0);
+    if(!currentAudioFile){ await ensureAudioReady(); playAudio(audioFiles[0],0,true); }
+  });
+
+  // 其它添加方式（保留）
+  async function pickMultipleFiles(){
+    if(hasFS){
+      const hs=await window.showOpenFilePicker({multiple:true,types:[{description:'Audio',accept:{'audio/*':['.mp3','.m4a','.wav','.flac','.ogg','.aac']}}]});
+      const out=[]; for(const h of hs){const f=await h.getFile(); out.push({name:f.name,path:URL.createObjectURL(f),file:f,handle:h});}
+      return out;
+    }else{
+      return new Promise(res=>{const i=document.createElement('input');i.type='file';i.multiple=true;i.accept='audio/*';i.onchange=()=>res(Array.from(i.files).map(f=>({name:f.name,path:URL.createObjectURL(f),file:f})));i.click();});
     }
-    initWaveSurfer();
-
-    function formatTime(s){const m=Math.floor(s/60),ss=Math.floor(s%60);return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;}
-
-    function playAudio(file,index){
-      document.getElementById('currentPlayer').style.display='block';
-      currentAudioFile=file; currentAudioFile.index=index;
-      document.getElementById('currentTitle').textContent='当前播放：'+file.name;
-      document.getElementById('liteTitleDisplay').textContent=file.name;
-      selectedIndex=index; renderPlaylist();
-      wavesurfer.load(file.path);
-      setTimeout(()=>{ if(!wavesurfer.isPlaying()) wavesurfer.play();
-        document.getElementById('fullPlayPauseButton').textContent='⏸️';
-        document.getElementById('litePlayPauseButton').textContent='⏸️';
-      },60);
-    }
-
-    // —— 顶部添加文件：使用 label 触发，无需 JS（兼容 WebView）
-    document.getElementById('audioFiles').addEventListener('change',e=>{
-      const files=Array.from(e.target.files).filter(f=>f.type.startsWith('audio/')||isAudioExt(f.name)).map(f=>({name:f.name,path:URL.createObjectURL(f),file:f}));
-      if(!files.length) return;
-      audioFiles.push(...files); sortPlaylist(); renderPlaylist(); showMessage(`已添加 ${files.length} 个文件`,'success');
+  }
+  async function pickDirectoryFilesOrFallback(accept='audio/*'){
+    const t=document.createElement('input'); if('webkitdirectory' in t){
+      return new Promise(res=>{const i=document.createElement('input');i.type='file';i.multiple=true;i.accept=accept;i.webkitdirectory=true;i.onchange=()=>res(Array.from(i.files).map(f=>({name:f.name,path:URL.createObjectURL(f),file:f})));i.click();});
+    } else { return await pickMultipleFiles(); }
+  }
+  document.getElementById('addByPickerButton').addEventListener('click',async()=>{
+    const files=await pickMultipleFiles(); if(!files.length) return;
+    audioFiles.push(...files); sortPlaylist(); renderPlaylist(); showMessage(`添加 ${files.length} 个文件`,'success');
+    if(selectedIndex<0) setSelected(0);
+    if(!currentAudioFile){ await ensureAudioReady(); playAudio(audioFiles[0],0,true); }
+  });
+  document.getElementById('addFolderButton').addEventListener('click',async()=>{
+    const files=await pickDirectoryFilesOrFallback('audio/*'); if(!files.length) return;
+    audioFiles.push(...files); sortPlaylist(); renderPlaylist(); showMessage(`添加 ${files.length} 个文件`,'success');
+    if(selectedIndex<0) setSelected(0);
+    if(!currentAudioFile){ await ensureAudioReady(); playAudio(audioFiles[0],0,true); }
+  });
+  document.getElementById('importZipButton').addEventListener('click',()=>{
+    const i=document.createElement('input');i.type='file';i.accept='.zip,application/zip';
+    i.onchange=async()=>{ if(!i.files[0]) return;
+      const buf=await i.files[0].arrayBuffer(); const zip=await JSZip.loadAsync(buf); const entries=[];
+      zip.forEach((p,e)=>{ if(!e.dir && isAudioExt(e.name)) entries.push(e); });
+      if(!entries.length){showMessage('ZIP 中未发现音频','error');return;}
+      const added=[]; for(const e of entries){ const blob=await e.async('blob'); const name=e.name.split('/').pop(); added.push({name,path:URL.createObjectURL(blob),file:new File([blob],name,{type:blob.type})}); }
+      audioFiles.push(...added); sortPlaylist(); renderPlaylist(); showMessage(`已导入 ${added.length} 个文件`,'success');
       if(selectedIndex<0) setSelected(0);
-      if(!currentAudioFile) playAudio(audioFiles[0],0);
-      e.target.value='';
-    });
+      if(!currentAudioFile){ await ensureAudioReady(); playAudio(audioFiles[0],0,true); }
+    }; i.click();
+  });
 
-    // 拖放
-    const drop=document.getElementById('dropArea');
-    ['dragenter','dragover','dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();}));
-    ['dragenter','dragover'].forEach(()=>drop.classList.add('drag-over'));
-    ['dragleave','drop'].forEach(()=>drop.classList.remove('drag-over'));
-    drop.addEventListener('drop',e=>{
-      const files=Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('audio/')||isAudioExt(f.name)).map(f=>({name:f.name,path:URL.createObjectURL(f),file:f}));
-      if(!files.length) return;
-      audioFiles.push(...files); sortPlaylist(); renderPlaylist(); showMessage(`拖入 ${files.length} 个文件`,'success');
-      if(selectedIndex<0) setSelected(0);
-      if(!currentAudioFile) playAudio(audioFiles[0],0);
-    });
+  // 键盘导航
+  const playlistBox=document.getElementById('playlistBox');
+  playlistBox.addEventListener('keydown',async e=>{
+    if(!audioFiles.length) return;
+    if(e.key==='ArrowDown'){setSelected(selectedIndex<0?0:selectedIndex+1);e.preventDefault();}
+    else if(e.key==='ArrowUp'){setSelected(selectedIndex<0?0:selectedIndex-1);e.preventDefault();}
+    else if(e.key==='Home'){setSelected(0);e.preventDefault();}
+    else if(e.key==='End'){setSelected(audioFiles.length-1);e.preventDefault();}
+    else if(e.key==='Enter'){ if(selectedIndex>=0){ await ensureAudioReady(); playAudio(audioFiles[selectedIndex],selectedIndex,true); } }
+  });
 
-    // 其他添加方式（保留）
-    async function pickMultipleFiles(){
-      if(hasFS){
-        const handles=await window.showOpenFilePicker({multiple:true,types:[{description:'Audio',accept:{'audio/*':['.mp3','.m4a','.wav','.flac','.ogg','.aac']}}]});
-        const out=[]; for(const h of handles){const f=await h.getFile(); out.push({name:f.name,path:URL.createObjectURL(f),file:f,handle:h});}
-        return out;
-      }else{
-        return new Promise(res=>{const i=document.createElement('input');i.type='file';i.multiple=true;i.accept='audio/*';i.onchange=()=>res(Array.from(i.files).map(f=>({name:f.name,path:URL.createObjectURL(f),file:f})));i.click();});
-      }
-    }
-    async function pickDirectoryFilesOrFallback(accept='audio/*'){
-      const t=document.createElement('input'); if('webkitdirectory' in t){
-        return new Promise(res=>{const i=document.createElement('input');i.type='file';i.multiple=true;i.accept=accept;i.webkitdirectory=true;i.onchange=()=>res(Array.from(i.files).map(f=>({name:f.name,path:URL.createObjectURL(f),file:f})));i.click();});
-      } else { return await pickMultipleFiles(); }
-    }
-    document.getElementById('addByPickerButton').addEventListener('click',async()=>{
-      const files=await pickMultipleFiles(); if(!files.length) return;
-      audioFiles.push(...files); sortPlaylist(); renderPlaylist(); showMessage(`添加 ${files.length} 个文件`,'success');
-      if(selectedIndex<0) setSelected(0);
-      if(!currentAudioFile) playAudio(audioFiles[0],0);
-    });
-    document.getElementById('addFolderButton').addEventListener('click',async()=>{
-      const files=await pickDirectoryFilesOrFallback('audio/*'); if(!files.length) return;
-      audioFiles.push(...files); sortPlaylist(); renderPlaylist(); showMessage(`添加 ${files.length} 个文件`,'success');
-      if(selectedIndex<0) setSelected(0);
-      if(!currentAudioFile) playAudio(audioFiles[0],0);
-    });
-    document.getElementById('importZipButton').addEventListener('click',()=>{
-      const i=document.createElement('input');i.type='file';i.accept='.zip,application/zip';i.onchange=async()=>{if(i.files[0]){const buf=await i.files[0].arrayBuffer();const zip=await JSZip.loadAsync(buf);const entries=[];zip.forEach((p,e)=>{if(!e.dir&&['.mp3','.wav','.ogg','.m4a','.flac','.aac'].some(x=>e.name.toLowerCase().endsWith(x))) entries.push(e);});if(!entries.length){showMessage('ZIP 中未发现音频','error');return;}const added=[];for(const e of entries){const blob=await e.async('blob');const name=e.name.split('/').pop();added.push({name,path:URL.createObjectURL(blob),file:new File([blob],name,{type:blob.type})});}audioFiles.push(...added);sortPlaylist();renderPlaylist();showMessage(`已导入 ${added.length} 个文件`,'success');if(selectedIndex<0) setSelected(0);if(!currentAudioFile) playAudio(audioFiles[0],0);}};i.click();
-    });
+  // 主控按钮 + 切换简洁模式（全部先 resume 再播放）
+  function navTrack(step){
+    if(!audioFiles.length||!currentAudioFile) return;
+    sortPlaylist();
+    let i = audioFiles.findIndex(f=>f.name===currentAudioFile.name);
+    if(i<0) i=0;
+    let n=i+step; if(n<0) n=audioFiles.length-1; if(n>=audioFiles.length) n=0;
+    playAudio(audioFiles[n],n,true);  // 来自用户手势 → 自动播
+  }
+  document.getElementById('fullPrevButton').addEventListener('click',async()=>{await ensureAudioReady(); navTrack(-1);});
+  document.getElementById('fullNextButton').addEventListener('click',async()=>{await ensureAudioReady(); navTrack(1);});
+  document.getElementById('fullRewButton').addEventListener('click',async()=>{await ensureAudioReady(); const t=wavesurfer.getCurrentTime(); wavesurfer.seekTo(Math.max(0,t-5)/wavesurfer.getDuration());});
+  document.getElementById('fullFwdButton').addEventListener('click',async()=>{await ensureAudioReady(); const t=wavesurfer.getCurrentTime(); wavesurfer.seekTo(Math.min(wavesurfer.getDuration(),t+5)/wavesurfer.getDuration());});
+  document.getElementById('fullPlayPauseButton').addEventListener('click',async()=>{
+    await ensureAudioReady();
+    if(wavesurfer.isPlaying()){wavesurfer.pause();} else {wavesurfer.play();}
+  });
+  document.getElementById('toggleModeBtn').addEventListener('click',()=>{document.getElementById('liteModeContainer').style.display='flex';});
 
-    // 键盘导航
-    const playlistBox=document.getElementById('playlistBox');
-    playlistBox.addEventListener('keydown',e=>{
-      if(!audioFiles.length) return;
-      if(e.key==='ArrowDown'){setSelected(selectedIndex<0?0:selectedIndex+1);e.preventDefault();}
-      else if(e.key==='ArrowUp'){setSelected(selectedIndex<0?0:selectedIndex-1);e.preventDefault();}
-      else if(e.key==='Home'){setSelected(0);e.preventDefault();}
-      else if(e.key==='End'){setSelected(audioFiles.length-1);e.preventDefault();}
-      else if(e.key==='Enter'){if(selectedIndex>=0) playAudio(audioFiles[selectedIndex],selectedIndex);}
-    });
+  // 简洁模式按钮，同步完整模式
+  document.getElementById('liteToggleBtn').addEventListener('click',()=>{document.getElementById('liteModeContainer').style.display='none';});
+  document.getElementById('litePlayPauseButton').addEventListener('click',async()=>{await ensureAudioReady(); if(wavesurfer.isPlaying()){wavesurfer.pause();} else {wavesurfer.play();}});
+  document.getElementById('liteRewindButton').addEventListener('click',async()=>{await ensureAudioReady(); const t=wavesurfer.getCurrentTime(); wavesurfer.seekTo(Math.max(0,t-5)/wavesurfer.getDuration());});
+  document.getElementById('liteForwardButton').addEventListener('click',async()=>{await ensureAudioReady(); const t=wavesurfer.getCurrentTime(); wavesurfer.seekTo(Math.min(wavesurfer.getDuration(),t+5)/wavesurfer.getDuration());});
+  document.getElementById('litePrevButton').addEventListener('click',async()=>{await ensureAudioReady(); navTrack(-1);});
+  document.getElementById('liteNextButton').addEventListener('click',async()=>{await ensureAudioReady(); navTrack(1);});
 
-    // 主控按钮 + 切换简洁模式
-    function navTrack(step){
-      if(!audioFiles.length||!currentAudioFile) return;
-      sortPlaylist();
-      let i=currentAudioFile.index ?? audioFiles.findIndex(f=>f.name===currentAudioFile.name);
-      if(i<0) i=0; let n=i+step; if(n<0) n=audioFiles.length-1; if(n>=audioFiles.length) n=0;
-      playAudio(audioFiles[n],n);
-    }
-    document.getElementById('fullPrevButton').addEventListener('click',()=>navTrack(-1));
-    document.getElementById('fullNextButton').addEventListener('click',()=>navTrack(1));
-    document.getElementById('fullRewButton').addEventListener('click',()=>{const t=wavesurfer.getCurrentTime();wavesurfer.seekTo(Math.max(0,t-5)/wavesurfer.getDuration());});
-    document.getElementById('fullFwdButton').addEventListener('click',()=>{const t=wavesurfer.getCurrentTime();wavesurfer.seekTo(Math.min(wavesurfer.getDuration(),t+5)/wavesurfer.getDuration());});
-    document.getElementById('fullPlayPauseButton').addEventListener('click',()=>{
-      if(wavesurfer.isPlaying()){wavesurfer.pause();document.getElementById('fullPlayPauseButton').textContent='▶️';document.getElementById('litePlayPauseButton').textContent='▶️';}
-      else{wavesurfer.play();document.getElementById('fullPlayPauseButton').textContent='⏸️';document.getElementById('litePlayPauseButton').textContent='⏸️';}
-    });
-    document.getElementById('toggleModeBtn').addEventListener('click',()=>{document.getElementById('liteModeContainer').style.display='flex';});
-    document.getElementById('liteToggleBtn').addEventListener('click',()=>{document.getElementById('liteModeContainer').style.display='none';});
-    document.getElementById('litePlayPauseButton').addEventListener('click',()=>document.getElementById('fullPlayPauseButton').click());
-    document.getElementById('liteRewindButton').addEventListener('click',()=>document.getElementById('fullRewButton').click());
-    document.getElementById('liteForwardButton').addEventListener('click',()=>document.getElementById('fullFwdButton').click());
-    document.getElementById('litePrevButton').addEventListener('click',()=>navTrack(-1));
-    document.getElementById('liteNextButton').addEventListener('click',()=>navTrack(1));
-    document.getElementById('playbackSpeed').addEventListener('change',function(){const s=parseFloat(this.value);wavesurfer.setPlaybackRate(s);document.getElementById('litePlaybackSpeed').value=this.value;});
-    document.getElementById('litePlaybackSpeed').addEventListener('change',function(){const s=parseFloat(this.value);wavesurfer.setPlaybackRate(s);document.getElementById('playbackSpeed').value=this.value;});
+  // 速度同步
+  document.getElementById('playbackSpeed').addEventListener('change',function(){const s=parseFloat(this.value);wavesurfer.setPlaybackRate(s);document.getElementById('litePlaybackSpeed').value=this.value;});
+  document.getElementById('litePlaybackSpeed').addEventListener('change',function(){const s=parseFloat(this.value);wavesurfer.setPlaybackRate(s);document.getElementById('playbackSpeed').value=this.value;});
 
-    // 清空列表（在列表下方）
-    document.getElementById('clearPlaylistBtn').addEventListener('click',()=>{
-      if(!audioFiles.length) return;
-      if(confirm('确定清空播放列表吗？')){
-        audioFiles.forEach(f=>{try{URL.revokeObjectURL(f.path);}catch(_){}});
-        audioFiles=[]; renderPlaylist(); document.getElementById('currentPlayer').style.display='none'; currentAudioFile=null; selectedIndex=-1;
-        localStorage.removeItem('audioPlaylistManifest');
-        showMessage('已清空列表','success');
-      }
-    });
+  // 清空列表（透明垃圾桶，直接清空）
+  document.getElementById('clearPlaylistBtn').addEventListener('click',()=>{
+    if(!audioFiles.length) return;
+    audioFiles.forEach(f=>{try{URL.revokeObjectURL(f.path);}catch(_){}});
+    audioFiles=[]; selectedIndex=-1; currentAudioFile=null;
+    renderPlaylist(); document.getElementById('currentPlayer').style.display='none';
+    showMessage('已清空列表','success');
+  });
 
-    // 初始化
-    renderPlaylist();
-  </script>
+  // 初始渲染
+  renderPlaylist();
+</script>
 </body>
 </html>
