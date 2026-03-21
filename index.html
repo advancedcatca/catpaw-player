@@ -173,189 +173,282 @@
 </div>
 
 <script>
-  let wavesurfer=null,isLooping=false,loopCounter=0;
-  let audioFiles=[],currentAudioFile=null,selectedIndex=-1;
-  let shouldAutoPlay=false;
+  /*
+   * iOS / Safari WebView 兼容方案：
+   * 1. backend: 'MediaElement'  → 用原生 <audio> 标签播放，绕开 WebAudio AudioContext 限制
+   * 2. 统一共享一个 <audio> 元素，WaveSurfer 负责绘制波形
+   * 3. 去掉所有 async/await ensureAudioReady，按钮点击直接同步调用 play()/pause()
+   * 4. 文件选择后只加载不自动播，防止 iOS 的自动播放策略拦截
+   */
 
-  function showMessage(t,type){
-    const m=document.getElementById('message');
-    m.textContent=t;
-    m.className='message-box '+(type==='error'?'error-message':'success-message');
+  let wavesurfer = null, isLooping = false, loopCounter = 0;
+  let audioFiles = [], currentAudioFile = null, selectedIndex = -1;
+  let wsReady = false; // wavesurfer 当前 track 是否 ready
+
+  // 共享 <audio> 元素
+  const audioEl = document.createElement('audio');
+  audioEl.preload = 'auto';
+  document.body.appendChild(audioEl);
+
+  function showMessage(t, type) {
+    const m = document.getElementById('message');
+    m.textContent = t;
+    m.className = 'message-box ' + (type === 'error' ? 'error-message' : 'success-message');
   }
-  function isAudioExt(n){return['.mp3','.wav','.ogg','.m4a','.flac','.aac'].some(x=>n.toLowerCase().endsWith(x));}
-  function sortPlaylist(){audioFiles.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));}
+  function isAudioExt(n) { return ['.mp3','.wav','.ogg','.m4a','.flac','.aac'].some(x => n.toLowerCase().endsWith(x)); }
+  function sortPlaylist() { audioFiles.sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:'base'})); }
 
-  function renderPlaylist(){
-    const box=document.getElementById('playlistBox'); box.innerHTML='';
-    if(!audioFiles.length){
-      box.innerHTML='<div class="playlist-item" style="justify-content:center;color:#aaa;font-size:14px">点击右上角 ＋ 添加音频</div>';
+  function renderPlaylist() {
+    const box = document.getElementById('playlistBox');
+    box.innerHTML = '';
+    if (!audioFiles.length) {
+      box.innerHTML = '<div class="playlist-item" style="justify-content:center;color:#aaa;font-size:14px">点击右上角 ＋ 添加音频</div>';
       return;
     }
-    audioFiles.forEach((f,i)=>{
-      const li=document.createElement('div'); li.className='playlist-item'; li.dataset.index=i;
-      const dot=document.createElement('div'); dot.className='np';
-      const name=document.createElement('span'); name.className='playlist-name'; name.textContent=f.name;
+    audioFiles.forEach((f, i) => {
+      const li = document.createElement('div');
+      li.className = 'playlist-item'; li.dataset.index = i;
+      const dot = document.createElement('div'); dot.className = 'np';
+      const name = document.createElement('span'); name.className = 'playlist-name'; name.textContent = f.name;
       li.appendChild(dot); li.appendChild(name);
-      if(currentAudioFile && currentAudioFile.name===f.name) li.classList.add('active');
-      if(i===selectedIndex) li.classList.add('selected');
-      li.addEventListener('click',async()=>{ await ensureAudioReady(); playAudio(f,i,true); });
+      if (currentAudioFile && currentAudioFile.name === f.name) li.classList.add('active');
+      if (i === selectedIndex) li.classList.add('selected');
+      // 点击列表项 → 同步切换并播放（用户手势，iOS 允许）
+      li.addEventListener('click', () => loadAndPlay(f, i));
       box.appendChild(li);
     });
   }
 
-  function setSelected(i){
-    if(!audioFiles.length){selectedIndex=-1;return;}
-    selectedIndex=Math.max(0,Math.min(audioFiles.length-1,i));
+  function setSelected(i) {
+    if (!audioFiles.length) { selectedIndex = -1; return; }
+    selectedIndex = Math.max(0, Math.min(audioFiles.length - 1, i));
     renderPlaylist();
-    const el=document.querySelector(`.playlist-item[data-index="${selectedIndex}"]`);
-    if(el) el.scrollIntoView({block:'nearest'});
+    const el = document.querySelector(`.playlist-item[data-index="${selectedIndex}"]`);
+    if (el) el.scrollIntoView({block:'nearest'});
   }
 
-  async function ensureAudioReady(){
-    try{
-      const ac=wavesurfer?.getAudioContext?.();
-      if(ac && ac.state!=='running') await ac.resume();
-    }catch(e){}
-  }
+  // ── WaveSurfer 初始化（MediaElement 后端）──────────────────────────────
+  function initWaveSurfer() {
+    wavesurfer = WaveSurfer.create({
+      container: '#waveform',
+      backend: 'MediaElement',   // ← 关键：使用 HTML5 Audio，iOS 兼容
+      mediaElement: audioEl,     // ← 共享同一个 audio 元素
+      waveColor: '#4a6fa5',
+      progressColor: '#2c3e50',
+      cursorColor: '#e74c3c',
+      barWidth: 2, barGap: 1,
+      height: 100,
+      normalize: true,
+      interact: true
+    });
 
-  function initWaveSurfer(){
-    wavesurfer=WaveSurfer.create({
-      container:'#waveform',waveColor:'#4a6fa5',progressColor:'#2c3e50',cursorColor:'#e74c3c',
-      barWidth:2,barGap:1,height:100,normalize:true
+    wavesurfer.on('ready', () => {
+      wsReady = true;
+      const dur = wavesurfer.getDuration();
+      document.getElementById('totalTime').textContent = formatTime(dur);
+      document.getElementById('liteTotalTime').textContent = formatTime(dur);
+      document.getElementById('loopEnd').value = dur.toFixed(1);
+      updateLiteProgress(0, dur);
     });
-    wavesurfer.on('ready',()=>{
-      const dur=wavesurfer.getDuration();
-      document.getElementById('totalTime').textContent=formatTime(dur);
-      document.getElementById('liteTotalTime').textContent=formatTime(dur);
-      document.getElementById('loopEnd').value=dur.toFixed(1);
-      updateLiteProgress(0,dur);
-      if(shouldAutoPlay){ wavesurfer.play(); shouldAutoPlay=false; syncPlayIcons(true); }
+
+    wavesurfer.on('audioprocess', () => {
+      const t = wavesurfer.getCurrentTime(), d = wavesurfer.getDuration();
+      document.getElementById('currentTime').textContent = formatTime(t);
+      updateLiteProgress(t, d);
     });
-    wavesurfer.on('audioprocess',()=>{
-      const t=wavesurfer.getCurrentTime(),d=wavesurfer.getDuration();
-      document.getElementById('currentTime').textContent=formatTime(t);
-      updateLiteProgress(t,d);
+    wavesurfer.on('seek', () => {
+      const t = wavesurfer.getCurrentTime(), d = wavesurfer.getDuration();
+      document.getElementById('currentTime').textContent = formatTime(t);
+      updateLiteProgress(t, d);
     });
-    wavesurfer.on('seek',()=>{ const t=wavesurfer.getCurrentTime(),d=wavesurfer.getDuration(); updateLiteProgress(t,d); });
-    wavesurfer.on('play',()=>syncPlayIcons(true));
-    wavesurfer.on('pause',()=>syncPlayIcons(false));
-    wavesurfer.on('finish',()=>syncPlayIcons(false));
+    wavesurfer.on('play',   () => syncPlayIcons(true));
+    wavesurfer.on('pause',  () => syncPlayIcons(false));
+    wavesurfer.on('finish', () => { syncPlayIcons(false); if (!isLooping) navTrack(1); });
+    wavesurfer.on('error',  e  => showMessage('播放错误：' + e, 'error'));
   }
   initWaveSurfer();
 
-  function syncPlayIcons(playing){
-    document.getElementById('fullPlayPauseButton').textContent=playing?'⏸️':'▶️';
-    document.getElementById('litePlayPauseButton').textContent=playing?'⏸️':'▶️';
+  function syncPlayIcons(playing) {
+    document.getElementById('fullPlayPauseButton').textContent = playing ? '⏸️' : '▶️';
+    document.getElementById('litePlayPauseButton').textContent = playing ? '⏸️' : '▶️';
   }
-  function updateLiteProgress(current,duration){
-    const pct=duration?(current/duration)*100:0;
-    document.getElementById('progressBar').style.width=(pct||0)+'%';
-    document.getElementById('liteCurrentTime').textContent=formatTime(current||0);
+  function updateLiteProgress(current, duration) {
+    const pct = duration ? (current / duration) * 100 : 0;
+    document.getElementById('progressBar').style.width = (pct || 0) + '%';
+    document.getElementById('liteCurrentTime').textContent = formatTime(current || 0);
   }
-  function formatTime(s){const m=Math.floor(s/60),ss=Math.floor(s%60);return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;}
+  function formatTime(s) {
+    const m = Math.floor(s / 60), ss = Math.floor(s % 60);
+    return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+  }
 
-  function playAudio(file,index,byUser=false){
-    document.getElementById('currentPlayer').style.display='block';
-    currentAudioFile=file; currentAudioFile.index=index;
-    document.getElementById('currentTitle').textContent='当前播放：'+file.name;
-    document.getElementById('liteTitleDisplay').textContent=file.name;
-    selectedIndex=index; renderPlaylist();
-    shouldAutoPlay=!!byUser;
+  // ── 加载并立即播放（用户手势上下文中调用）────────────────────────────
+  function loadAndPlay(file, index) {
+    wsReady = false;
+    currentAudioFile = file; currentAudioFile.index = index;
+    selectedIndex = index;
+    document.getElementById('currentPlayer').style.display = 'block';
+    document.getElementById('currentTitle').textContent = '当前播放：' + file.name;
+    document.getElementById('liteTitleDisplay').textContent = file.name;
+    renderPlaylist();
+
+    // MediaElement 后端：先把 src 塞给 audio 元素，再让 WaveSurfer load
+    audioEl.src = file.path;
+    audioEl.load();
+    wavesurfer.load(file.path);
+
+    // ready 后自动播放
+    wavesurfer.once('ready', () => {
+      audioEl.play().then(() => {
+        syncPlayIcons(true);
+      }).catch(() => {
+        // 播放被拦截时静默，用户可手动按播放
+        syncPlayIcons(false);
+      });
+    });
+  }
+
+  // ── 仅加载不播放（文件选择时调用，避免触发自动播放拦截）────────────
+  function loadOnly(file, index) {
+    wsReady = false;
+    currentAudioFile = file; currentAudioFile.index = index;
+    selectedIndex = index;
+    document.getElementById('currentPlayer').style.display = 'block';
+    document.getElementById('currentTitle').textContent = '当前播放：' + file.name;
+    document.getElementById('liteTitleDisplay').textContent = file.name;
+    renderPlaylist();
+    audioEl.src = file.path;
+    audioEl.load();
     wavesurfer.load(file.path);
   }
 
-  // 添加文件（label 触发 input）
-  document.getElementById('audioFiles').addEventListener('change',e=>{
-    const files=Array.from(e.target.files)
-      .filter(f=>f.type.startsWith('audio/')||isAudioExt(f.name))
-      .map(f=>({name:f.name,path:URL.createObjectURL(f),file:f}));
-    if(!files.length) return;
-    audioFiles.push(...files); sortPlaylist(); renderPlaylist();
-    showMessage(`已添加 ${files.length} 个文件`,'success');
-    if(selectedIndex<0) setSelected(0);
-    if(!currentAudioFile) playAudio(audioFiles[0],0,true);
-    e.target.value='';
-  });
-
-  // 键盘导航
-  document.getElementById('playlistBox').addEventListener('keydown',async e=>{
-    if(!audioFiles.length) return;
-    if(e.key==='ArrowDown'){setSelected(selectedIndex<0?0:selectedIndex+1);e.preventDefault();}
-    else if(e.key==='ArrowUp'){setSelected(selectedIndex<0?0:selectedIndex-1);e.preventDefault();}
-    else if(e.key==='Home'){setSelected(0);e.preventDefault();}
-    else if(e.key==='End'){setSelected(audioFiles.length-1);e.preventDefault();}
-    else if(e.key==='Enter'){ if(selectedIndex>=0){ await ensureAudioReady(); playAudio(audioFiles[selectedIndex],selectedIndex,true); } }
-  });
-
-  function navTrack(step){
-    if(!audioFiles.length||!currentAudioFile) return;
-    sortPlaylist();
-    let i=audioFiles.findIndex(f=>f.name===currentAudioFile.name);
-    if(i<0) i=0;
-    let n=i+step; if(n<0) n=audioFiles.length-1; if(n>=audioFiles.length) n=0;
-    playAudio(audioFiles[n],n,true);
+  // ── 播放 / 暂停（用户手势，直接同步调用）────────────────────────────
+  function togglePlayPause() {
+    if (!currentAudioFile) return;
+    if (audioEl.paused) {
+      audioEl.play().then(() => syncPlayIcons(true)).catch(()=>{});
+    } else {
+      audioEl.pause();
+      syncPlayIcons(false);
+    }
   }
 
-  // 全模式控制按钮
-  document.getElementById('fullPrevButton').addEventListener('click',async()=>{await ensureAudioReady();navTrack(-1);});
-  document.getElementById('fullNextButton').addEventListener('click',async()=>{await ensureAudioReady();navTrack(1);});
-  document.getElementById('fullRewButton').addEventListener('click',async()=>{await ensureAudioReady();const t=wavesurfer.getCurrentTime();wavesurfer.seekTo(Math.max(0,t-5)/wavesurfer.getDuration());});
-  document.getElementById('fullFwdButton').addEventListener('click',async()=>{await ensureAudioReady();const t=wavesurfer.getCurrentTime();wavesurfer.seekTo(Math.min(wavesurfer.getDuration(),t+5)/wavesurfer.getDuration());});
-  document.getElementById('fullPlayPauseButton').addEventListener('click',async()=>{await ensureAudioReady();wavesurfer.isPlaying()?wavesurfer.pause():wavesurfer.play();});
-  document.getElementById('toggleModeBtn').addEventListener('click',()=>{document.getElementById('liteModeContainer').style.display='flex';});
-
-  // 简洁模式控制按钮
-  document.getElementById('liteToggleBtn').addEventListener('click',()=>{document.getElementById('liteModeContainer').style.display='none';});
-  document.getElementById('litePlayPauseButton').addEventListener('click',async()=>{await ensureAudioReady();wavesurfer.isPlaying()?wavesurfer.pause():wavesurfer.play();});
-  document.getElementById('liteRewindButton').addEventListener('click',async()=>{await ensureAudioReady();const t=wavesurfer.getCurrentTime();wavesurfer.seekTo(Math.max(0,t-5)/wavesurfer.getDuration());});
-  document.getElementById('liteForwardButton').addEventListener('click',async()=>{await ensureAudioReady();const t=wavesurfer.getCurrentTime();wavesurfer.seekTo(Math.min(wavesurfer.getDuration(),t+5)/wavesurfer.getDuration());});
-  document.getElementById('litePrevButton').addEventListener('click',async()=>{await ensureAudioReady();navTrack(-1);});
-  document.getElementById('liteNextButton').addEventListener('click',async()=>{await ensureAudioReady();navTrack(1);});
-
-  // 速度同步
-  document.getElementById('playbackSpeed').addEventListener('change',function(){const s=parseFloat(this.value);wavesurfer.setPlaybackRate(s);document.getElementById('litePlaybackSpeed').value=this.value;});
-  document.getElementById('litePlaybackSpeed').addEventListener('change',function(){const s=parseFloat(this.value);wavesurfer.setPlaybackRate(s);document.getElementById('playbackSpeed').value=this.value;});
-
-  // 清空列表
-  document.getElementById('clearPlaylistBtn').addEventListener('click',()=>{
-    if(!audioFiles.length) return;
-    audioFiles.forEach(f=>{try{URL.revokeObjectURL(f.path);}catch(_){}});
-    audioFiles=[]; selectedIndex=-1; currentAudioFile=null;
-    renderPlaylist(); document.getElementById('currentPlayer').style.display='none';
-    showMessage('已清空列表','success');
+  // ── 文件添加 ──────────────────────────────────────────────────────────
+  document.getElementById('audioFiles').addEventListener('change', e => {
+    const files = Array.from(e.target.files)
+      .filter(f => f.type.startsWith('audio/') || isAudioExt(f.name))
+      .map(f => ({name: f.name, path: URL.createObjectURL(f), file: f}));
+    if (!files.length) return;
+    const isFirst = !currentAudioFile;
+    audioFiles.push(...files); sortPlaylist(); renderPlaylist();
+    showMessage(`已添加 ${files.length} 个文件`, 'success');
+    if (selectedIndex < 0) setSelected(0);
+    // 首次添加：仅加载，不强制播放（避免 iOS 自动播放拦截弹窗）
+    if (isFirst) loadOnly(audioFiles[0], 0);
+    e.target.value = '';
   });
 
-  // 选段复读
-  document.getElementById('setLoopStartBtn').addEventListener('click',()=>{
-    if(!wavesurfer) return;
-    document.getElementById('loopStart').value=wavesurfer.getCurrentTime().toFixed(1);
+  // ── 键盘导航 ──────────────────────────────────────────────────────────
+  document.getElementById('playlistBox').addEventListener('keydown', e => {
+    if (!audioFiles.length) return;
+    if (e.key === 'ArrowDown') { setSelected(selectedIndex < 0 ? 0 : selectedIndex + 1); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { setSelected(selectedIndex < 0 ? 0 : selectedIndex - 1); e.preventDefault(); }
+    else if (e.key === 'Home') { setSelected(0); e.preventDefault(); }
+    else if (e.key === 'End') { setSelected(audioFiles.length - 1); e.preventDefault(); }
+    else if (e.key === 'Enter') { if (selectedIndex >= 0) loadAndPlay(audioFiles[selectedIndex], selectedIndex); }
   });
-  document.getElementById('setLoopEndBtn').addEventListener('click',()=>{
-    if(!wavesurfer) return;
-    document.getElementById('loopEnd').value=wavesurfer.getCurrentTime().toFixed(1);
+
+  // ── 切换曲目 ──────────────────────────────────────────────────────────
+  function navTrack(step) {
+    if (!audioFiles.length || !currentAudioFile) return;
+    let i = audioFiles.findIndex(f => f.name === currentAudioFile.name);
+    if (i < 0) i = 0;
+    let n = i + step;
+    if (n < 0) n = audioFiles.length - 1;
+    if (n >= audioFiles.length) n = 0;
+    loadAndPlay(audioFiles[n], n);
+  }
+
+  // ── 主控按钮（全部同步，不 await）─────────────────────────────────────
+  document.getElementById('fullPlayPauseButton').addEventListener('click', togglePlayPause);
+  document.getElementById('fullPrevButton').addEventListener('click', () => navTrack(-1));
+  document.getElementById('fullNextButton').addEventListener('click', () => navTrack(1));
+  document.getElementById('fullRewButton').addEventListener('click', () => {
+    if (!currentAudioFile) return;
+    audioEl.currentTime = Math.max(0, audioEl.currentTime - 5);
   });
-  document.getElementById('startLoopBtn').addEventListener('click',async()=>{
-    if(!wavesurfer||isLooping) return;
-    await ensureAudioReady();
-    isLooping=true; loopCounter=0;
-    const start=parseFloat(document.getElementById('loopStart').value)||0;
-    const end=parseFloat(document.getElementById('loopEnd').value)||wavesurfer.getDuration();
-    const maxCount=parseInt(document.getElementById('loopCount').value)||0;
-    wavesurfer.seekTo(start/wavesurfer.getDuration());
-    wavesurfer.play();
-    function checkLoop(){
-      if(!isLooping) return;
-      const t=wavesurfer.getCurrentTime();
-      if(t>=end){
+  document.getElementById('fullFwdButton').addEventListener('click', () => {
+    if (!currentAudioFile) return;
+    audioEl.currentTime = Math.min(audioEl.duration || 0, audioEl.currentTime + 5);
+  });
+  document.getElementById('toggleModeBtn').addEventListener('click', () => {
+    document.getElementById('liteModeContainer').style.display = 'flex';
+  });
+
+  // ── 简洁模式按钮 ──────────────────────────────────────────────────────
+  document.getElementById('liteToggleBtn').addEventListener('click', () => { document.getElementById('liteModeContainer').style.display = 'none'; });
+  document.getElementById('litePlayPauseButton').addEventListener('click', togglePlayPause);
+  document.getElementById('liteRewindButton').addEventListener('click', () => { if (currentAudioFile) audioEl.currentTime = Math.max(0, audioEl.currentTime - 5); });
+  document.getElementById('liteForwardButton').addEventListener('click', () => { if (currentAudioFile) audioEl.currentTime = Math.min(audioEl.duration || 0, audioEl.currentTime + 5); });
+  document.getElementById('litePrevButton').addEventListener('click', () => navTrack(-1));
+  document.getElementById('liteNextButton').addEventListener('click', () => navTrack(1));
+
+  // ── 速度同步（直接设 audioEl.playbackRate，同时同步 wavesurfer）──────
+  function setSpeed(v) {
+    audioEl.playbackRate = v;
+    try { wavesurfer.setPlaybackRate(v); } catch(_) {}
+    document.getElementById('playbackSpeed').value = v;
+    document.getElementById('litePlaybackSpeed').value = v;
+  }
+  document.getElementById('playbackSpeed').addEventListener('change', function() { setSpeed(parseFloat(this.value)); });
+  document.getElementById('litePlaybackSpeed').addEventListener('change', function() { setSpeed(parseFloat(this.value)); });
+
+  // ── 清空列表 ──────────────────────────────────────────────────────────
+  document.getElementById('clearPlaylistBtn').addEventListener('click', () => {
+    if (!audioFiles.length) return;
+    audioEl.pause(); audioEl.src = '';
+    audioFiles.forEach(f => { try { URL.revokeObjectURL(f.path); } catch(_) {} });
+    audioFiles = []; selectedIndex = -1; currentAudioFile = null; wsReady = false;
+    syncPlayIcons(false);
+    renderPlaylist();
+    document.getElementById('currentPlayer').style.display = 'none';
+    showMessage('已清空列表', 'success');
+  });
+
+  // ── 选段复读 ──────────────────────────────────────────────────────────
+  document.getElementById('setLoopStartBtn').addEventListener('click', () => {
+    document.getElementById('loopStart').value = (audioEl.currentTime || 0).toFixed(1);
+  });
+  document.getElementById('setLoopEndBtn').addEventListener('click', () => {
+    document.getElementById('loopEnd').value = (audioEl.currentTime || 0).toFixed(1);
+  });
+  document.getElementById('startLoopBtn').addEventListener('click', () => {
+    if (!currentAudioFile || isLooping) return;
+    isLooping = true; loopCounter = 0;
+    const start = parseFloat(document.getElementById('loopStart').value) || 0;
+    const end   = parseFloat(document.getElementById('loopEnd').value)   || audioEl.duration;
+    const maxCount = parseInt(document.getElementById('loopCount').value) || 0;
+    audioEl.currentTime = start;
+    audioEl.play().then(() => syncPlayIcons(true)).catch(() => {});
+    function checkLoop() {
+      if (!isLooping) return;
+      if (audioEl.currentTime >= end) {
         loopCounter++;
-        if(maxCount>0 && loopCounter>=maxCount){ isLooping=false; wavesurfer.pause(); return; }
-        wavesurfer.seekTo(start/wavesurfer.getDuration());
+        if (maxCount > 0 && loopCounter >= maxCount) { isLooping = false; audioEl.pause(); syncPlayIcons(false); return; }
+        audioEl.currentTime = start;
       }
-      if(isLooping) requestAnimationFrame(checkLoop);
+      requestAnimationFrame(checkLoop);
     }
     requestAnimationFrame(checkLoop);
   });
-  document.getElementById('stopLoopBtn').addEventListener('click',()=>{isLooping=false;});
+  document.getElementById('stopLoopBtn').addEventListener('click', () => { isLooping = false; });
+
+  // ── audio 元素 timeupdate 补充（MediaElement 后端已接管，此为保险）──
+  audioEl.addEventListener('timeupdate', () => {
+    const t = audioEl.currentTime, d = audioEl.duration || 0;
+    document.getElementById('currentTime').textContent = formatTime(t);
+    updateLiteProgress(t, d);
+  });
 
   renderPlaylist();
 </script>
