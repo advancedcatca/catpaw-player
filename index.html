@@ -183,7 +183,7 @@
 
   let wavesurfer = null, isLooping = false, loopCounter = 0;
   let audioFiles = [], currentAudioFile = null, selectedIndex = -1;
-  let wsReady = false; // wavesurfer 当前 track 是否 ready
+  let wsReady = false, isSeeking = false;
 
   // 共享 <audio> 元素
   const audioEl = document.createElement('audio');
@@ -258,6 +258,7 @@
     });
     wavesurfer.on('seek', (progress) => {
       // MediaElement 后端：波形点击/拖动后必须手动把 audioEl.currentTime 对齐
+      if (isSeeking) return; // 由 timeupdate 触发的 seekTo，忽略
       const d = audioEl.duration;
       if (d && isFinite(d)) audioEl.currentTime = progress * d;
       const t = audioEl.currentTime || 0;
@@ -446,11 +447,17 @@
   });
   document.getElementById('stopLoopBtn').addEventListener('click', () => { isLooping = false; });
 
-  // ── audio 元素 timeupdate 补充（MediaElement 后端已接管，此为保险）──
+  // ── audio 元素 timeupdate：驱动波形进度 + 简洁版进度条 ───────────────
   audioEl.addEventListener('timeupdate', () => {
     const t = audioEl.currentTime, d = audioEl.duration || 0;
     document.getElementById('currentTime').textContent = formatTime(t);
     updateLiteProgress(t, d);
+    // 同步推动 WaveSurfer 波形游标（MediaElement 后端不会自动跟随）
+    if (wavesurfer && d && !isSeeking) {
+      isSeeking = true;
+      wavesurfer.seekTo(Math.min(t / d, 1));
+      isSeeking = false;
+    }
   });
 
   // ── 简洁模式进度条点击跳转 ───────────────────────────────────────────
