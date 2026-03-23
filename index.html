@@ -160,7 +160,7 @@
       </div>
     </div>
     <div id="liteTitleDisplay" style="text-align:center;font-weight:600;margin:6px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">当前播放：</div>
-    <div class="progress-container"><div id="progressBar" class="progress-bar"></div></div>
+    <div class="progress-container" id="liteProgressContainer" style="cursor:pointer;"><div id="progressBar" class="progress-bar"></div></div>
     <div class="time-display"><span id="liteCurrentTime">00:00</span> / <span id="liteTotalTime">00:00</span></div>
     <div class="lite-controls">
       <button id="litePrevButton" class="lite-control-button">⏮️</button>
@@ -256,10 +256,13 @@
       document.getElementById('currentTime').textContent = formatTime(t);
       updateLiteProgress(t, d);
     });
-    wavesurfer.on('seek', () => {
-      const t = wavesurfer.getCurrentTime(), d = wavesurfer.getDuration();
+    wavesurfer.on('seek', (progress) => {
+      // MediaElement 后端：波形点击/拖动后必须手动把 audioEl.currentTime 对齐
+      const d = audioEl.duration;
+      if (d && isFinite(d)) audioEl.currentTime = progress * d;
+      const t = audioEl.currentTime || 0;
       document.getElementById('currentTime').textContent = formatTime(t);
-      updateLiteProgress(t, d);
+      updateLiteProgress(t, d || 0);
     });
     wavesurfer.on('play',   () => syncPlayIcons(true));
     wavesurfer.on('pause',  () => syncPlayIcons(false));
@@ -448,6 +451,16 @@
     const t = audioEl.currentTime, d = audioEl.duration || 0;
     document.getElementById('currentTime').textContent = formatTime(t);
     updateLiteProgress(t, d);
+  });
+
+  // ── 简洁模式进度条点击跳转 ───────────────────────────────────────────
+  document.getElementById('liteProgressContainer').addEventListener('click', e => {
+    if (!currentAudioFile || !audioEl.duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    audioEl.currentTime = pct * audioEl.duration;
+    if (wavesurfer) wavesurfer.seekTo(pct);
+    updateLiteProgress(audioEl.currentTime, audioEl.duration);
   });
 
   renderPlaylist();
